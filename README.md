@@ -1,36 +1,30 @@
 # DATA236 Lab 1 - Restaurant Discovery App
 
-This repository contains my Lab 1 project for DATA236. The goal is to build a Yelp-style restaurant platform with core user flows for authentication, discovery, reviews, activity tracking, and recommendation/chat interaction.
+This repository contains the Lab 1 project with a simplified frontend structure for beginner-friendly collaboration.
 
-## Project Scope
+## Team Split
 
-The assignment focuses on these product tasks:
+- Partner A (Nikhil): backend (database, FastAPI endpoints, auth, reviews, favorites/history, owner dashboard, AI endpoint, Swagger)
+- Partner B (Jim): frontend (routes, auth UI, profile, explore, details, forms, favorites/history, report screenshots)
 
-- React routes + layout + responsive navbar
-- Axios client + auth handling
-- Signup/login pages
-- Profile/preferences editor page
-- Explore/search page with filters + cards
-- Restaurant details page + reviews list
-- Add restaurant form + write review form
-- Favorites + history tabs
-- Chat widget UI + clickable restaurant cards
-- Screenshot-ready UI flows for report submission
+## Current Repo Structure
 
-## Repository Structure
+- `frontend/` - React + Vite application
+  - frontend docs: `frontend/README.md`
 
-- `frontend/` - React + Vite frontend application for Lab 1
-  - detailed app docs: [`frontend/README.md`](./frontend/README.md)
+## Frontend Status
 
-## Current Status
+Completed:
 
-- Frontend scaffold is implemented and runnable.
-- UI flows are available with mock data and mock auth for demo/report screenshots.
-- Axios/API structure is in place for backend integration.
+- Core UI flows for auth, profile, explore, details, forms, favorites/history
+- Responsive navigation and route protection
+- Axios client and auth integration points
+
+Deferred:
+
+- Chatbot UI section
 
 ## Quick Start
-
-From this root directory:
 
 ```bash
 cd frontend
@@ -38,14 +32,7 @@ npm install
 npm run dev
 ```
 
-Build and lint:
-
-```bash
-npm run build
-npm run lint
-```
-
 ## Notes
 
-- This repo is currently local and can be pushed later when ready.
-- For real backend integration, configure `frontend/.env` using `frontend/.env.example` and wire endpoints for auth, users, restaurants, reviews, favorites, and history.
+- Frontend currently supports mock auth/data mode for fast UI iteration.
+- Switch to real backend by setting `VITE_USE_MOCK_AUTH=false` and wiring the API endpoints.
