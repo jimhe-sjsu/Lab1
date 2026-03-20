@@ -1,4 +1,4 @@
-from .user import User
+from .favorite import Favorite
 from .restaurant import Restaurant
 from .review import Review
-from .favorite import Favorite
+from .user import User, UserPreference

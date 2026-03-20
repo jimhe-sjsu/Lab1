@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -11,6 +11,7 @@ class Review(Base):
 
     rating = Column(Integer, nullable=False)  # 1-5
     comment = Column(Text, nullable=True)
+    photo_url = Column(String(500), nullable=True)
 
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False)

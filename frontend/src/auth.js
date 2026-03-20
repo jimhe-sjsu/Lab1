@@ -1,17 +1,20 @@
 import { createContext, createElement, useContext, useEffect, useState } from 'react'
-import api, { TOKEN_KEY } from './api'
+import api, { TOKEN_KEY, fetchCurrentUser, fetchDashboardSummary } from './api'
 
 const AUTH_STATE_KEY = 'lab1_auth_state'
 const AuthContext = createContext(null)
 
-const mockUserFromEmail = (email) => {
-  const localPart = email.split('@')[0] || 'Student'
-  return {
-    fullName: localPart.charAt(0).toUpperCase() + localPart.slice(1),
-    email,
-    city: 'San Jose',
-    favoriteCuisines: ['Japanese', 'Mexican'],
-    dietaryPreferences: ['Vegetarian options'],
+function decodeToken(token) {
+  try {
+    const payload = token.split('.')[1]
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const decoded = JSON.parse(window.atob(normalized))
+    return {
+      userId: decoded.sub ? Number(decoded.sub) : null,
+      role: decoded.role || 'USER',
+    }
+  } catch {
+    return { userId: null, role: 'USER' }
   }
 }
 
@@ -37,7 +40,38 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
   }, [])
 
-  const useMockAuth = import.meta.env.VITE_USE_MOCK_AUTH !== 'false'
+  const refreshUser = async (token, fallbackEmail) => {
+    const tokenData = decodeToken(token)
+
+    let profile = null
+    let dashboard = null
+
+    try {
+      profile = await fetchCurrentUser()
+    } catch {
+      profile = null
+    }
+
+    try {
+      dashboard = await fetchDashboardSummary()
+    } catch {
+      dashboard = null
+    }
+
+    const fallbackName = fallbackEmail ? fallbackEmail.split('@')[0] : 'User'
+
+    setAuthState({
+      token,
+      user: {
+        fullName: profile?.name || fallbackName,
+        email: profile?.email || dashboard?.user || fallbackEmail || '',
+        role: profile?.role || tokenData.role,
+        userId: tokenData.userId,
+        totalReviews: dashboard?.total_reviews ?? 0,
+        totalFavorites: dashboard?.total_favorites ?? 0,
+      },
+    })
+  }
 
   const login = async ({ email, password }) => {
     if (!email || !password) {
@@ -46,58 +80,43 @@ export function AuthProvider({ children }) {
 
     setIsLoading(true)
     try {
-      if (useMockAuth) {
-        const token = `mock-token-${Date.now()}`
-        setAuthState({ token, user: mockUserFromEmail(email) })
-        return
-      }
+      const payload = new URLSearchParams()
+      payload.set('username', email)
+      payload.set('password', password)
 
-      const { data } = await api.post('/auth/login', { email, password })
-      setAuthState({ token: data.token, user: data.user })
+      const { data } = await api.post('/auth/login', payload, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+
+      await refreshUser(data.access_token, email)
+    } catch (error) {
+      const message = error?.response?.data?.detail || 'Login failed. Please try again.'
+      throw new Error(message)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const signup = async ({ fullName, email, password }) => {
+  const signup = async ({ fullName, email, password, role = 'USER' }) => {
     if (!fullName || !email || !password) {
       throw new Error('Name, email, and password are required.')
     }
 
     setIsLoading(true)
     try {
-      if (useMockAuth) {
-        const token = `mock-token-${Date.now()}`
-        setAuthState({
-          token,
-          user: { ...mockUserFromEmail(email), fullName },
-        })
-        return
-      }
+      await api.post('/auth/signup', null, {
+        params: {
+          name: fullName,
+          email,
+          password,
+          role,
+        },
+      })
 
-      const { data } = await api.post('/auth/signup', { fullName, email, password })
-      setAuthState({ token: data.token, user: data.user })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const updateProfile = async (profileUpdates) => {
-    setIsLoading(true)
-    try {
-      if (useMockAuth) {
-        setAuthState((prev) => ({
-          ...prev,
-          user: {
-            ...prev.user,
-            ...profileUpdates,
-          },
-        }))
-        return
-      }
-
-      const { data } = await api.put('/users/me', profileUpdates)
-      setAuthState((prev) => ({ ...prev, user: data.user }))
+      await login({ email, password })
+    } catch (error) {
+      const message = error?.response?.data?.detail || 'Signup failed. Please try again.'
+      throw new Error(message)
     } finally {
       setIsLoading(false)
     }
@@ -114,8 +133,8 @@ export function AuthProvider({ children }) {
     isLoading,
     login,
     signup,
-    updateProfile,
     logout,
+    refreshUser,
   }
 
   return createElement(AuthContext.Provider, { value }, children)

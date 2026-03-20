@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 
 function Signup() {
-  const [form, setForm] = useState({ fullName: '', email: '', password: '' })
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'USER' })
   const [error, setError] = useState('')
   const { signup, isLoading } = useAuth()
   const navigate = useNavigate()
@@ -52,6 +52,12 @@ function Signup() {
           value={form.password}
           onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
         />
+
+        <label htmlFor='role'>Account type</label>
+        <select id='role' value={form.role} onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value }))}>
+          <option value='USER'>Reviewer</option>
+          <option value='OWNER'>Restaurant Owner</option>
+        </select>
 
         {error && <p className='error-text'>{error}</p>}
 

@@ -6,6 +6,7 @@ import Explore from './pages/Explore'
 import FavoritesHistory from './pages/FavoritesHistory'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import OwnerDashboard from './pages/OwnerDashboard'
 import Profile from './pages/Profile'
 import RestaurantDetails from './pages/RestaurantDetails'
 import Signup from './pages/Signup'
@@ -35,7 +36,7 @@ const privateLinks = [
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
-  const { isAuthenticated, logout } = useAuth()
+  const { isAuthenticated, logout, user } = useAuth()
 
   const closeMenu = () => setIsOpen(false)
 
@@ -68,6 +69,8 @@ function Navbar() {
                 {link.label}
               </NavLink>
             ))}
+
+          {isAuthenticated ? <span className='muted'>Role: {user?.role || 'USER'}</span> : null}
 
           {!isAuthenticated ? (
             <>
@@ -148,6 +151,14 @@ function App() {
           element={
             <ProtectedRoute>
               <WriteReview />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/restaurants/:restaurantId/owner-dashboard'
+          element={
+            <ProtectedRoute>
+              <OwnerDashboard />
             </ProtectedRoute>
           }
         />

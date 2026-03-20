@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { restaurants } from '../mockData'
-
-const allCuisines = ['All', ...new Set(restaurants.map((restaurant) => restaurant.cuisine))]
+import { searchRestaurants } from '../api'
 
 function RestaurantCard({ restaurant }) {
   return (
@@ -23,37 +21,70 @@ function RestaurantCard({ restaurant }) {
 }
 
 function Explore() {
-  const [search, setSearch] = useState('')
-  const [cuisine, setCuisine] = useState('All')
-  const [maxPrice, setMaxPrice] = useState('$$$')
+  const [restaurants, setRestaurants] = useState([])
+  const [filters, setFilters] = useState({
+    name: '',
+    cuisine: 'All',
+    city: '',
+    zipCode: '',
+    keyword: '',
+    priceTier: 'Any',
+  })
   const [minimumRating, setMinimumRating] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadRestaurants() {
+      try {
+        setIsLoading(true)
+        setError('')
+        const data = await searchRestaurants(filters)
+        if (mounted) {
+          setRestaurants(data)
+        }
+      } catch (requestError) {
+        if (mounted) {
+          setError(requestError?.response?.data?.detail || 'Could not load restaurants.')
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadRestaurants()
+
+    return () => {
+      mounted = false
+    }
+  }, [filters])
+
+  const allCuisines = useMemo(() => {
+    return ['All', ...new Set(restaurants.map((restaurant) => restaurant.cuisine).filter(Boolean))]
+  }, [restaurants])
 
   const filteredRestaurants = useMemo(() => {
-    return restaurants.filter((restaurant) => {
-      const matchesSearch =
-        restaurant.name.toLowerCase().includes(search.toLowerCase()) ||
-        restaurant.city.toLowerCase().includes(search.toLowerCase())
-      const matchesCuisine = cuisine === 'All' || restaurant.cuisine === cuisine
-      const matchesPrice = restaurant.priceLevel.length <= maxPrice.length
-      const matchesRating = restaurant.rating >= minimumRating
-      return matchesSearch && matchesCuisine && matchesPrice && matchesRating
-    })
-  }, [search, cuisine, maxPrice, minimumRating])
+    return restaurants.filter((restaurant) => restaurant.rating >= minimumRating)
+  }, [restaurants, minimumRating])
 
   return (
     <section className='page'>
       <h1>Explore Restaurants</h1>
-      <p className='muted'>Search by keyword and filter by cuisine, price, and rating.</p>
+      <p className='muted'>Search by name, cuisine, location, and keywords.</p>
 
       <div className='filter-grid'>
         <label>
-          Search
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder='Name or city' />
+          Restaurant name
+          <input value={filters.name} onChange={(event) => setFilters((prev) => ({ ...prev, name: event.target.value }))} />
         </label>
 
         <label>
           Cuisine
-          <select value={cuisine} onChange={(event) => setCuisine(event.target.value)}>
+          <select value={filters.cuisine} onChange={(event) => setFilters((prev) => ({ ...prev, cuisine: event.target.value }))}>
             {allCuisines.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -63,11 +94,32 @@ function Explore() {
         </label>
 
         <label>
-          Max price
-          <select value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)}>
+          City
+          <input value={filters.city} onChange={(event) => setFilters((prev) => ({ ...prev, city: event.target.value }))} />
+        </label>
+
+        <label>
+          ZIP code
+          <input value={filters.zipCode} onChange={(event) => setFilters((prev) => ({ ...prev, zipCode: event.target.value }))} />
+        </label>
+
+        <label>
+          Keyword
+          <input
+            value={filters.keyword}
+            onChange={(event) => setFilters((prev) => ({ ...prev, keyword: event.target.value }))}
+            placeholder='quiet, wifi, outdoor'
+          />
+        </label>
+
+        <label>
+          Price tier
+          <select value={filters.priceTier} onChange={(event) => setFilters((prev) => ({ ...prev, priceTier: event.target.value }))}>
+            <option value='Any'>Any</option>
             <option value='$'>$</option>
             <option value='$$'>$$</option>
             <option value='$$$'>$$$</option>
+            <option value='$$$$'>$$$$</option>
           </select>
         </label>
 
@@ -86,10 +138,11 @@ function Explore() {
         <strong>{filteredRestaurants.length}</strong> result(s)
       </div>
 
+      {isLoading && <p className='muted'>Loading restaurants...</p>}
+      {error && <p className='error-text'>{error}</p>}
+
       <div className='card-grid'>
-        {filteredRestaurants.map((restaurant) => (
-          <RestaurantCard key={restaurant.id} restaurant={restaurant} />
-        ))}
+        {!isLoading && !error && filteredRestaurants.map((restaurant) => <RestaurantCard key={restaurant.id} restaurant={restaurant} />)}
       </div>
     </section>
   )

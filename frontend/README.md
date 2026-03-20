@@ -57,5 +57,4 @@ npm run build
 
 ## Environment Variables
 
-- `VITE_API_BASE_URL` (default `http://localhost:3000/api`)
-- `VITE_USE_MOCK_AUTH` (`true` for mock auth, `false` for real backend auth)
+- `VITE_API_BASE_URL` (leave blank in local development to use the Vite proxy to `http://localhost:3000`)

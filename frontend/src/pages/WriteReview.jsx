@@ -1,17 +1,42 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { findRestaurantById } from '../mockData'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { createReview, fetchRestaurantDetails } from '../api'
 
 function WriteReview() {
   const { restaurantId } = useParams()
-  const restaurant = findRestaurantById(restaurantId)
-  const [submitted, setSubmitted] = useState(false)
-  const [form, setForm] = useState({ rating: 5, comment: '' })
+  const navigate = useNavigate()
+  const [restaurant, setRestaurant] = useState(null)
+  const [form, setForm] = useState({ rating: 5, comment: '', photoUrl: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  if (!restaurant) {
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadRestaurant() {
+      try {
+        const data = await fetchRestaurantDetails(restaurantId)
+        if (isMounted) {
+          setRestaurant(data.restaurant)
+        }
+      } catch (requestError) {
+        if (isMounted) {
+          setError(requestError?.response?.data?.detail || 'Could not load restaurant.')
+        }
+      }
+    }
+
+    loadRestaurant()
+    return () => {
+      isMounted = false
+    }
+  }, [restaurantId])
+
+  if (error && !restaurant) {
     return (
       <section className='page'>
         <h1>Restaurant not found</h1>
+        <p className='error-text'>{error}</p>
         <p>
           Visit <Link to='/explore'>Explore</Link>.
         </p>
@@ -19,9 +44,32 @@ function WriteReview() {
     )
   }
 
-  const handleSubmit = (event) => {
+  if (!restaurant) {
+    return (
+      <section className='page'>
+        <p className='muted'>Loading restaurant...</p>
+      </section>
+    )
+  }
+
+  const handleSubmit = async (event) => {
     event.preventDefault()
-    setSubmitted(true)
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      await createReview({
+        restaurant_id: Number(restaurantId),
+        rating: form.rating,
+        comment: form.comment,
+        photo_url: form.photoUrl.trim() || null,
+      })
+      navigate(`/restaurants/${restaurantId}`)
+    } catch (requestError) {
+      setError(requestError?.response?.data?.detail || 'Could not submit review.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -50,10 +98,19 @@ function WriteReview() {
           onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))}
         />
 
-        {submitted && <p className='success-text'>Review submitted (frontend demo).</p>}
+        <label htmlFor='photoUrl'>Photo URL (optional)</label>
+        <input
+          id='photoUrl'
+          type='url'
+          placeholder='https://...'
+          value={form.photoUrl}
+          onChange={(event) => setForm((prev) => ({ ...prev, photoUrl: event.target.value }))}
+        />
 
-        <button className='btn btn-primary' type='submit'>
-          Submit Review
+        {error && <p className='error-text'>{error}</p>}
+
+        <button className='btn btn-primary' type='submit' disabled={isSubmitting}>
+          {isSubmitting ? 'Submitting...' : 'Submit Review'}
         </button>
       </form>
     </section>

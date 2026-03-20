@@ -1,7 +1,9 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
-from app.database import Base
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from app.database import Base
 
 
 class Restaurant(Base):
@@ -20,10 +22,15 @@ class Restaurant(Base):
 
     price_tier = Column(String(10), nullable=True)
 
+    # Additional optional metadata for richer listing details.
+    contact_phone = Column(String(30), nullable=True)
+    hours_text = Column(String(255), nullable=True)
+    photo_url = Column(String(500), nullable=True)
+    amenities_text = Column(String(500), nullable=True)
+
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # IMPORTANT PART
     reviews = relationship("Review", back_populates="restaurant", cascade="all, delete")

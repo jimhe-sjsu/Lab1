@@ -185,6 +185,17 @@ p {
   flex-wrap: wrap;
 }
 
+.three-column-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.list-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .filter-grid,
 .form-card {
   display: grid;
@@ -336,6 +347,27 @@ fieldset {
   margin-bottom: 0.35rem;
 }
 
+.review-photo {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 10px;
+  margin-top: 0.55rem;
+  border: 1px solid var(--border);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.65rem;
+}
+
+.summary-row:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 .tab-row {
   display: flex;
   gap: 0.65rem;
@@ -361,4 +393,94 @@ fieldset {
 
 .success-text {
   color: #1f6f5e;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.9rem;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.success-text {
+  color: #1f6f5e;
+  font-weight: 600;
+}
+
+.inline-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.chat-widget {
+  display: grid;
+  gap: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.chat-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-window {
+  max-height: 260px;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fdfdf9;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  line-height: 1.4;
+}
+
+.chat-bubble.user {
+  margin-left: auto;
+  background: #d9efe6;
+}
+
+.chat-bubble.assistant {
+  background: #eef0e5;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.chat-input-row input {
+  flex: 1;
+}
+
+.chat-recommendations {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.recommendation-card {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.65rem;
+  background: #fff;
 }

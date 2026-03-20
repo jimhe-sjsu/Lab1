@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.review import Review
-from app.models.restaurant import Restaurant
-from app.models.user import User
+
 from app.core.security import get_current_user
-from app.schemas.review import ReviewCreate, ReviewResponse
+from app.database import get_db
+from app.models.restaurant import Restaurant
+from app.models.review import Review
+from app.models.user import User
+from app.schemas.review import ReviewCreate, ReviewResponse, ReviewUpdate
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
@@ -14,13 +15,9 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
 def create_review(
     review: ReviewCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    # Check restaurant exists
-    restaurant = db.query(Restaurant).filter(
-        Restaurant.id == review.restaurant_id
-    ).first()
-
+    restaurant = db.query(Restaurant).filter(Restaurant.id == review.restaurant_id).first()
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
@@ -28,7 +25,8 @@ def create_review(
         restaurant_id=review.restaurant_id,
         rating=review.rating,
         comment=review.comment,
-        user_id=current_user.id
+        photo_url=review.photo_url,
+        user_id=current_user.id,
     )
 
     db.add(new_review)
@@ -43,13 +41,12 @@ def get_reviews_for_restaurant(restaurant_id: int, db: Session = Depends(get_db)
     return db.query(Review).filter(Review.restaurant_id == restaurant_id).all()
 
 
-@router.put("/{review_id}")
+@router.put("/{review_id}", response_model=ReviewResponse)
 def update_review(
     review_id: int,
-    rating: int = None,
-    comment: str = None,
+    updates: ReviewUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     review = db.query(Review).filter(Review.id == review_id).first()
 
@@ -59,10 +56,14 @@ def update_review(
     if review.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to update")
 
-    if rating:
-        review.rating = rating
-    if comment:
-        review.comment = comment
+    update_data = updates.model_dump(exclude_unset=True)
+
+    if "rating" in update_data:
+        review.rating = update_data["rating"]
+    if "comment" in update_data:
+        review.comment = update_data["comment"]
+    if "photo_url" in update_data:
+        review.photo_url = update_data["photo_url"]
 
     db.commit()
     db.refresh(review)
@@ -74,7 +75,7 @@ def update_review(
 def delete_review(
     review_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     review = db.query(Review).filter(Review.id == review_id).first()
 

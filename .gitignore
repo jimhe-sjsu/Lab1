@@ -32,3 +32,9 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+
+# large local datasets (do not commit)
+yelp_dataset/
+yelp_dataset.tar
+yelp_dataset.tar.gz
+yelp_academic_dataset_*.json
