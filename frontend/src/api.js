@@ -51,6 +51,7 @@ function normalizeRestaurant(restaurant, extras = {}) {
     hoursText: restaurant.hours_text || '',
     amenitiesText: restaurant.amenities_text || '',
     imageUrl: restaurant.photo_url || fallbackImageUrl,
+    viewCount: Number(restaurant.view_count ?? 0),
   }
 }
 
@@ -60,7 +61,7 @@ function normalizeReview(review) {
     rating: Number(review.rating),
     comment: review.comment || '',
     photoUrl: review.photo_url || '',
-    author: review.user_id ? `User #${review.user_id}` : 'Anonymous',
+    author: review.reviewer_name || (review.user_id ? `User #${review.user_id}` : 'Anonymous'),
     userId: review.user_id,
     createdAt: review.created_at,
     updatedAt: review.updated_at,
@@ -192,6 +193,15 @@ async function chatWithAssistant(payload) {
   return data
 }
 
+async function uploadImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/uploads/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
 export {
   TOKEN_KEY,
   addFavorite,
@@ -216,6 +226,7 @@ export {
   updatePreferences,
   updateRestaurant,
   updateReview,
+  uploadImage,
 }
 
 export default api

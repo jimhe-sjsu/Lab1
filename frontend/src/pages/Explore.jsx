@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { searchRestaurants } from '../api'
 
 function RestaurantCard({ restaurant }) {
@@ -21,6 +21,7 @@ function RestaurantCard({ restaurant }) {
 }
 
 function Explore() {
+  const [searchParams] = useSearchParams()
   const [restaurants, setRestaurants] = useState([])
   const [filters, setFilters] = useState({
     name: '',
@@ -33,6 +34,18 @@ function Explore() {
   const [minimumRating, setMinimumRating] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      name: searchParams.get('name') || '',
+      cuisine: searchParams.get('cuisine') || 'All',
+      city: searchParams.get('city') || '',
+      zipCode: searchParams.get('zip_code') || '',
+      keyword: searchParams.get('keyword') || '',
+      priceTier: searchParams.get('price_tier') || 'Any',
+    }))
+  }, [searchParams])
 
   useEffect(() => {
     let mounted = true

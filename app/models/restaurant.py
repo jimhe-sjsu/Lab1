@@ -27,6 +27,7 @@ class Restaurant(Base):
     hours_text = Column(String(255), nullable=True)
     photo_url = Column(String(500), nullable=True)
     amenities_text = Column(String(500), nullable=True)
+    view_count = Column(Integer, nullable=False, default=0)
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)

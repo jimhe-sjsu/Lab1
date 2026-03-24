@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,22 @@ from app.models.user import User
 from app.schemas.review import ReviewCreate, ReviewResponse, ReviewUpdate
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
+
+
+
+def _serialize_review(review: Review) -> ReviewResponse:
+    reviewer_name = review.user.name if getattr(review, "user", None) else None
+    return ReviewResponse(
+        id=review.id,
+        restaurant_id=review.restaurant_id,
+        rating=review.rating,
+        comment=review.comment,
+        photo_url=review.photo_url,
+        user_id=review.user_id,
+        reviewer_name=reviewer_name,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
+    )
 
 
 @router.post("/", response_model=ReviewResponse)
@@ -33,12 +51,18 @@ def create_review(
     db.commit()
     db.refresh(new_review)
 
-    return new_review
+    return _serialize_review(new_review)
 
 
-@router.get("/restaurant/{restaurant_id}")
+@router.get("/restaurant/{restaurant_id}", response_model=List[ReviewResponse])
 def get_reviews_for_restaurant(restaurant_id: int, db: Session = Depends(get_db)):
-    return db.query(Review).filter(Review.restaurant_id == restaurant_id).all()
+    reviews = (
+        db.query(Review)
+        .filter(Review.restaurant_id == restaurant_id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
+    return [_serialize_review(review) for review in reviews]
 
 
 @router.put("/{review_id}", response_model=ReviewResponse)
@@ -57,7 +81,6 @@ def update_review(
         raise HTTPException(status_code=403, detail="Not authorized to update")
 
     update_data = updates.model_dump(exclude_unset=True)
-
     if "rating" in update_data:
         review.rating = update_data["rating"]
     if "comment" in update_data:
@@ -68,7 +91,7 @@ def update_review(
     db.commit()
     db.refresh(review)
 
-    return review
+    return _serialize_review(review)
 
 
 @router.delete("/{review_id}")

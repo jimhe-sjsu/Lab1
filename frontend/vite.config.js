@@ -20,7 +20,7 @@ export default defineConfig({
       backendRoutes.map((route) => [
         route,
         {
-          target: 'http://localhost:3000',
+          target: 'http://localhost:8000',
           changeOrigin: true,
         },
       ])

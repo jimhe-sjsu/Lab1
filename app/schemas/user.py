@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserProfileBase(BaseModel):
@@ -15,24 +15,25 @@ class UserProfileBase(BaseModel):
     languages: Optional[str] = None
     gender: Optional[str] = None
     profile_image_url: Optional[str] = None
+    restaurant_location: Optional[str] = None
 
 
 class UserProfileUpdate(UserProfileBase):
-    role: Optional[Literal["USER", "OWNER"]] = None
+    pass
 
 
 class UserProfileResponse(UserProfileBase):
     id: int
     role: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserPreferencesBase(BaseModel):
     preferred_cuisines: List[str] = Field(default_factory=list)
     price_range: Optional[str] = None
     preferred_locations: List[str] = Field(default_factory=list)
+    search_radius: Optional[int] = Field(default=None, ge=1, le=100)
     dietary_needs: List[str] = Field(default_factory=list)
     ambiance_preferences: List[str] = Field(default_factory=list)
     sort_preference: Optional[str] = None

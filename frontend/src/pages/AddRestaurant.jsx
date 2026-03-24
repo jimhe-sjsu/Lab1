@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createRestaurant } from '../api'
+import { createRestaurant, uploadImage } from '../api'
 
 function AddRestaurant() {
   const navigate = useNavigate()
@@ -18,6 +18,7 @@ function AddRestaurant() {
     photoUrl: '',
     amenitiesText: '',
   })
+  const [photoFile, setPhotoFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -27,6 +28,12 @@ function AddRestaurant() {
     setIsSubmitting(true)
 
     try {
+      let uploadedPhotoUrl = form.photoUrl
+      if (photoFile) {
+        const upload = await uploadImage(photoFile)
+        uploadedPhotoUrl = upload.url
+      }
+
       const created = await createRestaurant({
         name: form.name,
         cuisine_type: form.cuisine,
@@ -38,7 +45,7 @@ function AddRestaurant() {
         price_tier: form.priceLevel,
         contact_phone: form.contactPhone,
         hours_text: form.hoursText,
-        photo_url: form.photoUrl,
+        photo_url: uploadedPhotoUrl,
         amenities_text: form.amenitiesText,
       })
       navigate(`/restaurants/${created.id}`)
@@ -65,11 +72,13 @@ function AddRestaurant() {
         <input id='address' required value={form.address} onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))} />
 
         <div className='split-grid'>
-          <label htmlFor='city'>City
+          <label htmlFor='city'>
+            City
             <input id='city' required value={form.city} onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))} />
           </label>
 
-          <label htmlFor='state'>State
+          <label htmlFor='state'>
+            State
             <input id='state' required value={form.state} onChange={(event) => setForm((prev) => ({ ...prev, state: event.target.value }))} />
           </label>
         </div>
@@ -86,11 +95,7 @@ function AddRestaurant() {
         </select>
 
         <label htmlFor='contactPhone'>Contact phone (optional)</label>
-        <input
-          id='contactPhone'
-          value={form.contactPhone}
-          onChange={(event) => setForm((prev) => ({ ...prev, contactPhone: event.target.value }))}
-        />
+        <input id='contactPhone' value={form.contactPhone} onChange={(event) => setForm((prev) => ({ ...prev, contactPhone: event.target.value }))} />
 
         <label htmlFor='hoursText'>Hours (optional)</label>
         <input id='hoursText' value={form.hoursText} onChange={(event) => setForm((prev) => ({ ...prev, hoursText: event.target.value }))} />
@@ -98,20 +103,14 @@ function AddRestaurant() {
         <label htmlFor='photoUrl'>Photo URL (optional)</label>
         <input id='photoUrl' value={form.photoUrl} onChange={(event) => setForm((prev) => ({ ...prev, photoUrl: event.target.value }))} />
 
+        <label htmlFor='photoFile'>Upload restaurant photo</label>
+        <input id='photoFile' type='file' accept='image/*' onChange={(event) => setPhotoFile(event.target.files?.[0] || null)} />
+
         <label htmlFor='amenitiesText'>Amenities (optional keywords)</label>
-        <input
-          id='amenitiesText'
-          value={form.amenitiesText}
-          onChange={(event) => setForm((prev) => ({ ...prev, amenitiesText: event.target.value }))}
-        />
+        <input id='amenitiesText' value={form.amenitiesText} onChange={(event) => setForm((prev) => ({ ...prev, amenitiesText: event.target.value }))} />
 
         <label htmlFor='description'>Description</label>
-        <textarea
-          id='description'
-          rows={4}
-          value={form.description}
-          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-        />
+        <textarea id='description' rows={4} value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} />
 
         {error && <p className='error-text'>{error}</p>}
 

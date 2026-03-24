@@ -42,6 +42,8 @@ function RestaurantDetails() {
 
   const userId = user?.userId
   const isOwnerRole = user?.role === 'OWNER'
+  const isReviewer = user?.role !== 'OWNER'
+  const canWriteReview = isAuthenticated && isReviewer
 
   useEffect(() => {
     let isMounted = true
@@ -240,26 +242,40 @@ function RestaurantDetails() {
           <p>{restaurant.description}</p>
 
           <div className='hero-actions'>
-            <Link to={`/restaurants/${restaurant.id}/review`} className='btn btn-primary'>
-              Write Review Form
-            </Link>
+            {canWriteReview && (
+              <Link to={`/restaurants/${restaurant.id}/review`} className='btn btn-primary'>
+                Write Review
+              </Link>
+            )}
+
             {isAuthenticated && (
               <button type='button' className='btn btn-secondary' onClick={toggleFavorite}>
                 {isFavorite ? 'Remove Favorite' : 'Add Favorite'}
               </button>
             )}
+
             {canClaim && (
               <button type='button' className='btn btn-secondary' onClick={handleClaimRestaurant}>
                 Claim Restaurant
               </button>
             )}
+
             {isClaimedByCurrentOwner && (
-              <button type='button' className='btn btn-secondary' onClick={() => navigate(`/restaurants/${restaurant.id}/owner-dashboard`)}>
+              <button
+                type='button'
+                className='btn btn-secondary'
+                onClick={() => navigate(`/restaurants/${restaurant.id}/owner-dashboard`)}
+              >
                 Owner Dashboard
               </button>
             )}
+
             {canEditRestaurant && (
-              <button type='button' className='btn btn-secondary' onClick={() => setIsEditingRestaurant((prev) => !prev)}>
+              <button
+                type='button'
+                className='btn btn-secondary'
+                onClick={() => setIsEditingRestaurant((prev) => !prev)}
+              >
                 {isEditingRestaurant ? 'Close Edit' : 'Edit Listing'}
               </button>
             )}
@@ -275,7 +291,8 @@ function RestaurantDetails() {
           <p className='muted'>Owners can update photo URL and listing details.</p>
 
           <form className='inline-form' onSubmit={saveRestaurantEdits}>
-            <label htmlFor='photoUrl'>Photo URL
+            <label htmlFor='photoUrl'>
+              Photo URL
               <input
                 id='photoUrl'
                 value={restaurantEdit.photoUrl}
@@ -283,7 +300,8 @@ function RestaurantDetails() {
               />
             </label>
 
-            <label htmlFor='contactPhone'>Contact phone
+            <label htmlFor='contactPhone'>
+              Contact phone
               <input
                 id='contactPhone'
                 value={restaurantEdit.contactPhone}
@@ -291,7 +309,8 @@ function RestaurantDetails() {
               />
             </label>
 
-            <label htmlFor='hoursText'>Hours
+            <label htmlFor='hoursText'>
+              Hours
               <input
                 id='hoursText'
                 value={restaurantEdit.hoursText}
@@ -299,7 +318,8 @@ function RestaurantDetails() {
               />
             </label>
 
-            <label htmlFor='amenitiesText'>Amenities
+            <label htmlFor='amenitiesText'>
+              Amenities
               <input
                 id='amenitiesText'
                 value={restaurantEdit.amenitiesText}
@@ -307,7 +327,8 @@ function RestaurantDetails() {
               />
             </label>
 
-            <label htmlFor='priceTier'>Price tier
+            <label htmlFor='priceTier'>
+              Price tier
               <select
                 id='priceTier'
                 value={restaurantEdit.priceLevel}
@@ -320,7 +341,8 @@ function RestaurantDetails() {
               </select>
             </label>
 
-            <label htmlFor='description'>Description
+            <label htmlFor='description'>
+              Description
               <textarea
                 id='description'
                 rows={3}
@@ -336,7 +358,7 @@ function RestaurantDetails() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {canWriteReview && (
         <section className='form-card'>
           <h2>Quick Review</h2>
           <form onSubmit={handleCreateReview} className='inline-form'>
@@ -388,7 +410,7 @@ function RestaurantDetails() {
         <h2>Reviews</h2>
         <div className='review-list'>
           {reviews.map((review) => {
-            const canEdit = isAuthenticated && review.userId === userId
+            const canEditThisReview = isReviewer && isAuthenticated && review.userId === userId
             const isEditing = editingReviewId === review.id
 
             return (
@@ -454,7 +476,7 @@ function RestaurantDetails() {
                   </>
                 )}
 
-                {canEdit && !isEditing && (
+                {canEditThisReview && !isEditing && (
                   <div className='hero-actions'>
                     <button type='button' className='btn btn-secondary' onClick={() => startEdit(review)}>
                       Edit

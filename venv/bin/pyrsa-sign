@@ -1,4 +1,4 @@
-#!/Users/nikhilkanaparthi/yelp-backend/venv/bin/python
+#!/Users/nikhilkanaparthi/Lab1/venv/bin/python3.10
 import sys
 from rsa.cli import sign
 if __name__ == '__main__':

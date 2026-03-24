@@ -1,183 +1,304 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { chatWithAssistant, fetchHomeFeed } from '../api'
+import { Link, useNavigate } from 'react-router-dom'
+import { chatWithAssistant, searchRestaurants } from '../api'
 import { useAuth } from '../auth'
 
-function HomeList({ title, items, renderDescription }) {
+function HomeRestaurantCard({ restaurant }) {
   return (
-    <section className='list-panel'>
-      <h2>{title}</h2>
-      <div className='list-stack'>
-        {items.map((item) => (
-          <Link key={`${title}-${item.id}`} className='list-item' to={`/restaurants/${item.id}`}>
-            <strong>{item.name}</strong>
-            <span className='muted'>{renderDescription(item)}</span>
-          </Link>
-        ))}
+    <Link to={`/restaurants/${restaurant.id}`} className='restaurant-card' aria-label={`Open ${restaurant.name}`}>
+      <img src={restaurant.imageUrl} alt={restaurant.name} className='restaurant-card-image' />
+      <div className='restaurant-card-body'>
+        <div className='restaurant-card-header'>
+          <h3>{restaurant.name}</h3>
+          <span className='rating-pill'>{restaurant.rating.toFixed(1)}</span>
+        </div>
+        <p className='muted'>
+          {restaurant.cuisine} • {restaurant.city} • {restaurant.priceLevel}
+        </p>
+        <p>{restaurant.description}</p>
       </div>
-    </section>
+    </Link>
   )
 }
 
-function ChatAssistant() {
-  const { isAuthenticated } = useAuth()
-  const [input, setInput] = useState('')
-  const [messages, setMessages] = useState([])
-  const [recommendations, setRecommendations] = useState([])
-  const [isThinking, setIsThinking] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSend(event) {
-    event.preventDefault()
-    if (!isAuthenticated) {
-      setError('Login is required to use the AI assistant.')
-      return
-    }
-    if (!input.trim()) {
-      return
-    }
-
-    const userMessage = { role: 'user', content: input.trim() }
-    const nextMessages = [...messages, userMessage]
-
-    setMessages(nextMessages)
-    setInput('')
-    setError('')
-    setIsThinking(true)
-
-    try {
-      const response = await chatWithAssistant({
-        message: userMessage.content,
-        conversation_history: nextMessages,
-      })
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: response.reply }])
-      setRecommendations(response.recommendations || [])
-    } catch (requestError) {
-      setError(requestError?.response?.data?.detail || 'AI assistant is unavailable right now.')
-    } finally {
-      setIsThinking(false)
-    }
-  }
-
+function RecommendationCard({ item }) {
   return (
-    <section className='chat-widget'>
-      <div className='chat-header-row'>
-        <h2>AI Assistant</h2>
-        <button type='button' className='btn btn-secondary' onClick={() => { setMessages([]); setRecommendations([]); setError('') }}>
-          Clear
-        </button>
-      </div>
-
-      <div className='chat-window'>
-        {messages.length === 0 ? <p className='muted'>Ask for personalized restaurant recommendations.</p> : null}
-        {messages.map((message, index) => (
-          <div key={`${message.role}-${index}`} className={message.role === 'assistant' ? 'chat-bubble assistant' : 'chat-bubble user'}>
-            {message.content}
-          </div>
-        ))}
-        {isThinking ? <p className='muted'>Assistant is thinking...</p> : null}
-      </div>
-
-      {recommendations.length > 0 ? (
-        <div className='chat-recommendations'>
-          {recommendations.map((item) => (
-            <Link className='recommendation-card' key={item.id} to={`/restaurants/${item.id}`}>
-              <strong>{item.name}</strong>
-              <span className='muted'>
-                {item.cuisine} • {item.price_tier} • {item.average_rating.toFixed(1)} ({item.review_count})
-              </span>
-              <span className='muted'>{item.reason}</span>
-            </Link>
-          ))}
-        </div>
-      ) : null}
-
-      {error && <p className='error-text'>{error}</p>}
-
-      <form className='chat-input-row' onSubmit={handleSend}>
-        <input
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder='e.g. Romantic dinner near 95112'
-          disabled={!isAuthenticated}
-        />
-        <button className='btn btn-primary' type='submit' disabled={isThinking}>
-          Send
-        </button>
-      </form>
-    </section>
+    <Link to={`/restaurants/${item.id}`} className='recommendation-card'>
+      <strong>{item.name}</strong>
+      <span className='muted'>
+        {item.cuisine} • {item.price_tier} • {item.average_rating?.toFixed?.(1) ?? item.average_rating}
+      </span>
+      <span>{item.reason}</span>
+    </Link>
   )
 }
 
 function Home() {
-  const [feed, setFeed] = useState({ top_rated: [], most_reviewed: [], recent_restaurants: [] })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+
+  const [discoverForm, setDiscoverForm] = useState({
+    name: '',
+    cuisine: '',
+    city: '',
+    keyword: '',
+  })
+
+  const [featuredRestaurants, setFeaturedRestaurants] = useState([])
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(true)
+  const [featuredError, setFeaturedError] = useState('')
+
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content: 'Hi! Tell me what kind of food or dining experience you want, and I will recommend restaurants for you.',
+    },
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [chatError, setChatError] = useState('')
+  const [isChatting, setIsChatting] = useState(false)
+  const [recommendations, setRecommendations] = useState([])
+
+  function resetChat() {
+    setMessages([
+      {
+        role: 'assistant',
+        content: 'Hi! Tell me what kind of food or dining experience you want, and I will recommend restaurants for you.',
+      },
+    ])
+    setChatInput('')
+    setChatError('')
+    setRecommendations([])
+  }
 
   useEffect(() => {
-    let isMounted = true
+    let mounted = true
 
-    async function loadHomeFeed() {
+    async function loadFeaturedRestaurants() {
       try {
-        setIsLoading(true)
-        const data = await fetchHomeFeed()
-        if (isMounted) {
-          setFeed(data)
+        setIsLoadingFeatured(true)
+        setFeaturedError('')
+        const data = await searchRestaurants({})
+        const sorted = [...data].sort((a, b) => {
+          if (b.rating !== a.rating) return b.rating - a.rating
+          return b.reviewCount - a.reviewCount
+        })
+
+        if (mounted) {
+          setFeaturedRestaurants(sorted.slice(0, 6))
         }
-      } catch (requestError) {
-        if (isMounted) {
-          setError(requestError?.response?.data?.detail || 'Could not load home feed.')
+      } catch (error) {
+        if (mounted) {
+          setFeaturedError(error?.response?.data?.detail || 'Could not load featured restaurants.')
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false)
+        if (mounted) {
+          setIsLoadingFeatured(false)
         }
       }
     }
 
-    loadHomeFeed()
+    loadFeaturedRestaurants()
+
     return () => {
-      isMounted = false
+      mounted = false
     }
   }, [])
 
+  function handleDiscoverSubmit(event) {
+    event.preventDefault()
+
+    const params = new URLSearchParams()
+
+    if (discoverForm.name.trim()) params.set('name', discoverForm.name.trim())
+    if (discoverForm.cuisine.trim()) params.set('cuisine', discoverForm.cuisine.trim())
+    if (discoverForm.city.trim()) params.set('city', discoverForm.city.trim())
+    if (discoverForm.keyword.trim()) params.set('keyword', discoverForm.keyword.trim())
+
+    navigate(`/explore?${params.toString()}`)
+  }
+
+  async function sendMessage(customMessage = null) {
+    const messageToSend = (customMessage ?? chatInput).trim()
+    if (!messageToSend) return
+
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+
+    const nextMessages = [...messages, { role: 'user', content: messageToSend }]
+    setMessages(nextMessages)
+    setChatInput('')
+    setChatError('')
+    setIsChatting(true)
+
+    try {
+      const response = await chatWithAssistant({
+        message: messageToSend,
+        conversation_history: nextMessages.map((item) => ({
+          role: item.role,
+          content: item.content,
+        })),
+      })
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: response.reply }])
+      setRecommendations(response.recommendations || [])
+    } catch (error) {
+      setChatError(error?.response?.data?.detail || 'Assistant is not responding right now.')
+    } finally {
+      setIsChatting(false)
+    }
+  }
+
+  const quickPrompts = [
+    'Best rated near me',
+    'Find dinner tonight',
+    'Romantic anniversary dinner',
+    'Vegan casual places',
+  ]
+
   return (
     <section className='page'>
-      <section className='hero-page'>
-        <p className='eyebrow'>DATA236 Lab 1</p>
-        <h1>Discover restaurants, save favorites, and write reviews.</h1>
-        <p className='lead'>Use the AI assistant for personalized recommendations, then open cards to inspect full details.</p>
-        <div className='hero-actions'>
-          <Link className='btn btn-primary' to='/explore'>
-            Explore Restaurants
-          </Link>
-          <Link className='btn btn-secondary' to='/signup'>
-            Create Account
-          </Link>
+      <section className='home-hero'>
+        <div className='home-hero-overlay'>
+          <span className='eyebrow light'>Yelp Prototype</span>
+          <h1>Discover great places to eat near you</h1>
+          <p className='lead hero-lead'>
+            Search restaurants, read reviews, save favorites, and get AI-powered recommendations.
+          </p>
+
+          <form className='hero-search-form' onSubmit={handleDiscoverSubmit}>
+            <input
+              type='text'
+              placeholder='Restaurant name'
+              value={discoverForm.name}
+              onChange={(event) => setDiscoverForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+            <input
+              type='text'
+              placeholder='Cuisine'
+              value={discoverForm.cuisine}
+              onChange={(event) => setDiscoverForm((prev) => ({ ...prev, cuisine: event.target.value }))}
+            />
+            <input
+              type='text'
+              placeholder='City'
+              value={discoverForm.city}
+              onChange={(event) => setDiscoverForm((prev) => ({ ...prev, city: event.target.value }))}
+            />
+            <input
+              type='text'
+              placeholder='Keyword like wifi, quiet, brunch'
+              value={discoverForm.keyword}
+              onChange={(event) => setDiscoverForm((prev) => ({ ...prev, keyword: event.target.value }))}
+            />
+            <button type='submit' className='btn btn-primary'>
+              Search
+            </button>
+          </form>
+
+          <div className='quick-actions'>
+            {quickPrompts.map((prompt) => (
+              <button key={prompt} type='button' className='chip-button' onClick={() => sendMessage(prompt)}>
+                {prompt}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
-      <ChatAssistant />
+      <section className='home-main-grid'>
+        <div className='home-left-column'>
+          <section className='section-block'>
+            <div className='section-title-row'>
+              <div>
+                <h2>Featured Restaurants</h2>
+                <p className='muted'>Top picks from your restaurant list.</p>
+              </div>
+              <Link to='/explore' className='link-accent'>
+                View all
+              </Link>
+            </div>
 
-      {isLoading && <p className='muted'>Loading home feed...</p>}
-      {error && <p className='error-text'>{error}</p>}
+            {isLoadingFeatured && <p className='muted'>Loading featured restaurants...</p>}
+            {featuredError && <p className='error-text'>{featuredError}</p>}
 
-      {!isLoading && !error && (
-        <div className='three-column-grid'>
-          <HomeList
-            title='Top Rated'
-            items={feed.top_rated}
-            renderDescription={(item) => `Average rating: ${Number(item.average_rating).toFixed(1)}`}
-          />
-          <HomeList title='Most Reviewed' items={feed.most_reviewed} renderDescription={(item) => `Reviews: ${item.review_count}`} />
-          <HomeList
-            title='Recently Added'
-            items={feed.recent_restaurants}
-            renderDescription={(item) => `${item.city} • ${item.price_tier || '$$'}`}
-          />
+            <div className='card-grid'>
+              {!isLoadingFeatured &&
+                !featuredError &&
+                featuredRestaurants.map((restaurant) => (
+                  <HomeRestaurantCard key={restaurant.id} restaurant={restaurant} />
+                ))}
+            </div>
+          </section>
         </div>
-      )}
+
+        <aside className='home-right-column'>
+          <section className='chat-widget'>
+            <div className='chat-header-row'>
+              <div>
+                <h2>Ask the AI Assistant</h2>
+                <p className='muted'>
+                  Try: “vegan casual dinner in San Jose” or “romantic anniversary dinner”
+                </p>
+              </div>
+              <div className='button-row'>
+                {isAuthenticated && (
+                  <button type='button' className='btn btn-secondary' onClick={resetChat}>
+                    Clear Chat
+                  </button>
+                )}
+                {isAuthenticated ? null : (
+                  <Link to='/login' className='btn btn-secondary'>
+                    Login
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            <div className='chat-window'>
+              {messages.map((message, index) => (
+                <div key={index} className={`chat-bubble ${message.role}`}>
+                  {message.content}
+                </div>
+              ))}
+              {isChatting && <div className='chat-bubble assistant'>Thinking...</div>}
+            </div>
+
+            <div className='chat-input-row'>
+              <input
+                type='text'
+                placeholder='Ask for restaurant recommendations...'
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    sendMessage()
+                  }
+                }}
+              />
+              <button type='button' className='btn btn-primary' onClick={() => sendMessage()} disabled={isChatting}>
+                Send
+              </button>
+            </div>
+
+            {chatError && <p className='error-text'>{chatError}</p>}
+
+            {recommendations.length > 0 && (
+              <div>
+                <h3>Recommendations</h3>
+                <div className='chat-recommendations'>
+                  {recommendations.map((item) => (
+                    <RecommendationCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </aside>
+      </section>
     </section>
   )
 }

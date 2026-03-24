@@ -21,7 +21,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), default=UserRole.USER)
 
-    # Profile fields required by the assignment.
+    # Reviewer / owner profile fields.
     phone_number = Column(String(30), nullable=True)
     about_me = Column(String(500), nullable=True)
     city = Column(String(100), nullable=True)
@@ -30,6 +30,7 @@ class User(Base):
     languages = Column(String(200), nullable=True)
     gender = Column(String(30), nullable=True)
     profile_image_url = Column(String(500), nullable=True)
+    restaurant_location = Column(String(255), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -50,6 +51,7 @@ class UserPreference(Base):
     preferred_cuisines = Column(String(500), nullable=True)
     price_range = Column(String(20), nullable=True)
     preferred_locations = Column(String(500), nullable=True)
+    search_radius = Column(Integer, nullable=True)
     dietary_needs = Column(String(500), nullable=True)
     ambiance_preferences = Column(String(500), nullable=True)
     sort_preference = Column(String(50), nullable=True)
