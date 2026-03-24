@@ -11,6 +11,7 @@ const backendRoutes = [
   '/users',
   '/ai-assistant',
   '/protected',
+  '/uploads',
 ]
 
 export default defineConfig({

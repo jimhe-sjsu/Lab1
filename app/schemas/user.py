@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class UserProfileBase(BaseModel):
@@ -26,14 +26,14 @@ class UserProfileResponse(UserProfileBase):
     id: int
     role: str
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
 class UserPreferencesBase(BaseModel):
     preferred_cuisines: List[str] = Field(default_factory=list)
     price_range: Optional[str] = None
     preferred_locations: List[str] = Field(default_factory=list)
-    search_radius: Optional[int] = Field(default=None, ge=1, le=100)
     dietary_needs: List[str] = Field(default_factory=list)
     ambiance_preferences: List[str] = Field(default_factory=list)
     sort_preference: Optional[str] = None

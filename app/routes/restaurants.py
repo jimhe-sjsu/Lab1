@@ -10,21 +10,41 @@ from app.models.favorite import Favorite
 from app.models.restaurant import Restaurant
 from app.models.review import Review
 from app.models.user import User, UserRole
-from app.schemas.restaurant import RestaurantCreate, RestaurantResponse, RestaurantUpdate, RestaurantDetailsResponse
 from app.schemas.dashboard import OwnerDashboardResponse, RecentReviewItem, SentimentSummary
+from app.schemas.restaurant import (
+    RestaurantCreate,
+    RestaurantDetailsResponse,
+    RestaurantResponse,
+    RestaurantUpdate,
+)
 from app.schemas.review import ReviewResponse
 
 router = APIRouter(prefix="/restaurants", tags=["Restaurants"])
 
 
-def _with_metrics(restaurant: Restaurant, avg_rating: float | None, review_count: int | None):
+def _with_metrics(restaurant: Restaurant, avg_rating: float | None, review_count: int | None) -> dict:
     payload = {
         column.name: getattr(restaurant, column.name)
         for column in Restaurant.__table__.columns
     }
-    payload["average_rating"] = float(avg_rating) if avg_rating else 0
+    payload["average_rating"] = float(avg_rating) if avg_rating is not None else 0
     payload["review_count"] = int(review_count or 0)
+    payload["view_count"] = int(getattr(restaurant, "view_count", 0) or 0)
     return payload
+
+
+def _serialize_review(review: Review, reviewer_name: Optional[str] = None) -> ReviewResponse:
+    return ReviewResponse(
+        id=review.id,
+        restaurant_id=review.restaurant_id,
+        rating=review.rating,
+        comment=review.comment,
+        photo_url=review.photo_url,
+        user_id=review.user_id,
+        reviewer_name=reviewer_name,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
+    )
 
 
 def _normalize_text(value: str | None) -> str:
@@ -34,16 +54,7 @@ def _normalize_text(value: str | None) -> str:
 
 
 def _owner_location_matches_restaurant(owner_location: str | None, restaurant: Restaurant) -> bool:
-    """
-    Simple lab-friendly validation:
-    owner's registered restaurant_location must match at least one of:
-    - city
-    - state
-    - zip
-    - full address string
-    """
     owner_location_normalized = _normalize_text(owner_location)
-
     if not owner_location_normalized:
         return False
 
@@ -57,12 +68,10 @@ def _owner_location_matches_restaurant(owner_location: str | None, restaurant: R
     ]
 
     normalized_parts = [_normalize_text(part) for part in restaurant_parts if part]
-
-    for part in normalized_parts:
-        if part and (part in owner_location_normalized or owner_location_normalized in part):
-            return True
-
-    return False
+    return any(
+        part and (part in owner_location_normalized or owner_location_normalized in part)
+        for part in normalized_parts
+    )
 
 
 @router.post("/", response_model=RestaurantResponse)
@@ -132,16 +141,12 @@ def search_restaurants(
 
     if name:
         query = query.filter(Restaurant.name.ilike(f"%{name}%"))
-
     if cuisine:
         query = query.filter(Restaurant.cuisine_type.ilike(f"%{cuisine}%"))
-
     if city:
         query = query.filter(Restaurant.city.ilike(f"%{city}%"))
-
     if zip_code:
         query = query.filter(Restaurant.zip_code.ilike(f"%{zip_code}%"))
-
     if price_tier:
         query = query.filter(Restaurant.price_tier == price_tier)
 
@@ -150,6 +155,7 @@ def search_restaurants(
             or_(
                 Restaurant.description.ilike(f"%{keyword}%"),
                 Restaurant.amenities_text.ilike(f"%{keyword}%"),
+                Restaurant.hours_text.ilike(f"%{keyword}%"),
                 Restaurant.name.ilike(f"%{keyword}%"),
                 Restaurant.city.ilike(f"%{keyword}%"),
                 Restaurant.address.ilike(f"%{keyword}%"),
@@ -160,28 +166,34 @@ def search_restaurants(
     return [_with_metrics(restaurant, average_rating, review_count) for restaurant, average_rating, review_count in rows]
 
 
-@router.get("/{restaurant_id}")
+@router.get("/{restaurant_id}", response_model=RestaurantDetailsResponse)
 def get_restaurant(restaurant_id: int, db: Session = Depends(get_db)):
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
+    restaurant.view_count = int(restaurant.view_count or 0) + 1
+    db.commit()
+    db.refresh(restaurant)
+
     average_rating = db.query(func.avg(Review.rating)).filter(Review.restaurant_id == restaurant_id).scalar()
     review_count = db.query(func.count(Review.id)).filter(Review.restaurant_id == restaurant_id).scalar()
-    reviews = (
-        db.query(Review)
+
+    review_rows = (
+        db.query(Review, User.name)
+        .join(User, User.id == Review.user_id)
         .filter(Review.restaurant_id == restaurant_id)
         .order_by(Review.created_at.desc())
         .all()
     )
+    reviews = [_serialize_review(review, reviewer_name) for review, reviewer_name in review_rows]
 
-    return {
-        "restaurant": restaurant,
-        "average_rating": float(average_rating) if average_rating else 0,
-        "review_count": review_count,
-        "reviews": reviews,
-    }
+    return RestaurantDetailsResponse(
+        restaurant=RestaurantResponse(**_with_metrics(restaurant, average_rating, review_count)),
+        average_rating=float(average_rating) if average_rating is not None else 0,
+        review_count=int(review_count or 0),
+        reviews=reviews,
+    )
 
 
 @router.put("/{restaurant_id}", response_model=RestaurantResponse)
@@ -192,7 +204,6 @@ def update_restaurant(
     current_user: User = Depends(get_current_user),
 ):
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
@@ -208,7 +219,6 @@ def update_restaurant(
 
     average_rating = db.query(func.avg(Review.rating)).filter(Review.restaurant_id == restaurant_id).scalar()
     review_count = db.query(func.count(Review.id)).filter(Review.restaurant_id == restaurant_id).scalar()
-
     return _with_metrics(restaurant, average_rating, review_count)
 
 
@@ -219,7 +229,6 @@ def delete_restaurant(
     current_user: User = Depends(get_current_user),
 ):
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
@@ -228,7 +237,6 @@ def delete_restaurant(
 
     db.delete(restaurant)
     db.commit()
-
     return {"message": "Restaurant deleted successfully"}
 
 
@@ -239,7 +247,6 @@ def claim_restaurant(
     current_user: User = Depends(get_current_user),
 ):
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
@@ -248,16 +255,13 @@ def claim_restaurant(
 
     if restaurant.owner_id == current_user.id:
         return {"message": "You already manage this restaurant"}
-
     if restaurant.owner_id and restaurant.owner_id != current_user.id:
         raise HTTPException(status_code=400, detail="This restaurant has already been claimed")
-
     if not current_user.restaurant_location:
         raise HTTPException(
             status_code=400,
             detail="Please update your owner profile with a restaurant location before claiming a listing",
         )
-
     if not _owner_location_matches_restaurant(current_user.restaurant_location, restaurant):
         raise HTTPException(
             status_code=400,
@@ -267,7 +271,6 @@ def claim_restaurant(
     restaurant.owner_id = current_user.id
     db.commit()
     db.refresh(restaurant)
-
     return {"message": "Restaurant claimed successfully"}
 
 
@@ -278,52 +281,61 @@ def owner_dashboard(
     current_user: User = Depends(get_current_user),
 ):
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
-
     if restaurant.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    total_reviews = db.query(func.count(Review.id)).filter(Review.restaurant_id == restaurant_id).scalar()
+    total_reviews = int(
+        db.query(func.count(Review.id)).filter(Review.restaurant_id == restaurant_id).scalar() or 0
+    )
     avg_rating = db.query(func.avg(Review.rating)).filter(Review.restaurant_id == restaurant_id).scalar()
-    favorite_count = db.query(func.count(Favorite.id)).filter(Favorite.restaurant_id == restaurant_id).scalar()
-
-    recent_reviews = (
-        db.query(Review)
-        .filter(Review.restaurant_id == restaurant_id)
-        .order_by(Review.created_at.desc())
-        .limit(5)
-        .all()
+    favorite_count = int(
+        db.query(func.count(Favorite.id)).filter(Favorite.restaurant_id == restaurant_id).scalar() or 0
     )
 
-    rating_distribution_rows = (
+    distribution_rows = (
         db.query(Review.rating, func.count(Review.id))
         .filter(Review.restaurant_id == restaurant_id)
         .group_by(Review.rating)
         .all()
     )
+    rating_distribution: Dict[str, int] = {str(star): 0 for star in range(1, 6)}
+    for rating, count in distribution_rows:
+        rating_distribution[str(rating)] = int(count)
 
-    rating_distribution = {str(star): 0 for star in range(1, 6)}
-    for rating, count in rating_distribution_rows:
-        rating_distribution[str(rating)] = count
+    recent_review_rows = (
+        db.query(Review, User.name)
+        .join(User, User.id == Review.user_id)
+        .filter(Review.restaurant_id == restaurant_id)
+        .order_by(Review.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent_reviews = [
+        RecentReviewItem(
+            id=review.id,
+            reviewer_name=reviewer_name,
+            rating=review.rating,
+            comment=review.comment,
+            created_at=review.created_at,
+        )
+        for review, reviewer_name in recent_review_rows
+    ]
 
-    return {
-        "restaurant": restaurant.name,
-        "restaurant_id": restaurant.id,
-        "total_reviews": total_reviews or 0,
-        "average_rating": float(avg_rating) if avg_rating else 0,
-        "favorite_count": favorite_count or 0,
-        "rating_distribution": rating_distribution,
-        "recent_reviews": [
-            {
-                "id": review.id,
-                "rating": review.rating,
-                "comment": review.comment,
-                "photo_url": review.photo_url,
-                "user_id": review.user_id,
-                "created_at": review.created_at,
-            }
-            for review in recent_reviews
-        ],
-    }
+    sentiment = SentimentSummary(
+        positive=sum(int(count) for rating, count in distribution_rows if int(rating) >= 4),
+        neutral=sum(int(count) for rating, count in distribution_rows if int(rating) == 3),
+        negative=sum(int(count) for rating, count in distribution_rows if int(rating) <= 2),
+    )
+
+    return OwnerDashboardResponse(
+        restaurant=restaurant.name,
+        total_reviews=total_reviews,
+        average_rating=float(avg_rating) if avg_rating is not None else 0,
+        favorite_count=favorite_count,
+        total_views=int(restaurant.view_count or 0),
+        rating_distribution=rating_distribution,
+        recent_reviews=recent_reviews,
+        sentiment_summary=sentiment,
+    )
