@@ -1,35 +1,103 @@
-# DATA236 Lab 1 - Yelp Prototype
+# DATA 236 Lab 1 – Yelp Prototype
 
-A Yelp-style restaurant discovery and review platform built with **FastAPI + MySQL + React + Vite**.
+A full-stack Yelp-style restaurant discovery and review platform built with **FastAPI**, **MySQL**, **React**, and **Vite**. The project supports two primary personas—**reviewers** and **restaurant owners**—and includes an **AI assistant** for personalized restaurant recommendations.
 
-## What is included
+## Project Summary
 
-- Reviewer signup, login, profile, preferences, favorites, history, restaurant posting, and review CRUD
-- Restaurant owner signup, claim restaurant, owner profile, restaurant editing, and owner analytics dashboard
-- AI assistant endpoint and chatbot UI for personalized restaurant recommendations
-- Swagger API docs at `/docs`
+This lab implements a restaurant discovery platform inspired by Yelp. Users can create accounts, browse restaurants, manage favorites, write reviews, and save dining preferences. Restaurant owners can manage restaurant information, claim listings, and view dashboard analytics. The application also includes an AI chatbot endpoint that uses user preferences and natural-language prompts to recommend restaurants.
 
-## Tech stack
+## Features
 
-- Backend: FastAPI, SQLAlchemy, JWT auth, Passlib, PyMySQL
-- Frontend: React, React Router, Axios, Vite
-- Database: MySQL
-- AI helper layer: LangChain-style prompt parsing + optional Tavily live context
+### Reviewer Features
+- User signup and login
+- JWT-protected authenticated routes
+- Profile management
+- Dining preferences management for AI recommendations
+- Restaurant search and browse experience
+- Restaurant detail view
+- Create restaurant listing
+- Add, edit, and delete personal reviews
+- Favorites and activity/history tracking
+- AI chatbot on the home/dashboard experience
 
-## Project structure
+### Restaurant Owner Features
+- Owner signup and login
+- Owner profile management
+- Post new restaurant listings
+- Claim existing restaurants
+- Edit restaurant profile details
+- View restaurant reviews (read-only)
+- Owner dashboard with restaurant analytics
 
-- `app/` - FastAPI backend
-- `frontend/` - React frontend
-- `scripts/seed_yelp_business.py` - optional Yelp business import
-- `.env.example` - backend environment template
-- `LAB1_COMPLETION_GUIDE.md` - step-by-step final submission guide
+### AI Assistant
+- Chat endpoint at `POST /ai-assistant/chat`
+- Uses user preferences and natural-language queries
+- Supports personalized restaurant recommendations
+- Handles refinement/follow-up style conversations
+- Can be extended with Tavily live context support
 
-## Backend setup
+## Tech Stack
+
+### Backend
+- FastAPI
+- SQLAlchemy
+- MySQL
+- PyMySQL
+- JWT authentication
+- Passlib / bcrypt
+- Python dotenv
+- LangChain-related packages
+
+### Frontend
+- React
+- React Router DOM
+- Axios
+- Vite
+- ESLint
+
+## Project Structure
+
+```text
+Lab1/
+├── app/
+│   ├── core/
+│   ├── models/
+│   ├── routes/
+│   ├── schemas/
+│   ├── services/
+│   ├── database.py
+│   └── main.py
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── api.js
+│   │   ├── App.jsx
+│   │   ├── auth.js
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   └── vite.config.js
+├── scripts/
+├── uploads/
+├── .env.example
+├── .gitignore
+├── README.md
+├── requirements.txt
+└── seed_data.py
+```
+
+## Backend Setup
 
 1. Create a MySQL database named `lab1_yelp`.
-2. Copy `.env.example` to `.env`.
-3. Update `DATABASE_URL` with your MySQL username and password.
-4. Create a virtual environment and install dependencies.
+2. Create a virtual environment.
+3. Install Python dependencies.
+4. Copy `.env.example` to `.env` and update database credentials.
+
+### Commands
 
 ```bash
 python3 -m venv venv
@@ -38,32 +106,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Run the backend:
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-API docs:
-
-- Swagger UI: `http://localhost:8000/docs`
-- OpenAPI JSON: `http://localhost:8000/openapi.json`
-
-## Frontend setup
-
-In a second terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The Vite dev server runs on `http://localhost:5173` and proxies backend routes to `http://localhost:8000`.
-
-## Environment variables
-
-Backend `.env` values:
+### Example `.env`
 
 ```env
 DATABASE_URL=mysql+pymysql://root:your_mysql_password@localhost:3306/lab1_yelp
@@ -73,13 +116,53 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 TAVILY_API_KEY=
 ```
 
-## Core API routes
+### Run the backend
 
-### Auth
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Backend URLs:
+- API root: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+## Frontend Setup
+
+Open a second terminal and run:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend URL:
+- `http://localhost:5173`
+
+The Vite app is configured to communicate with the FastAPI backend on port `8000`.
+
+## Main Frontend Pages
+
+- `/` – Home page
+- `/explore` – Restaurant discovery/search page
+- `/restaurants/:restaurantId` – Restaurant details page
+- `/login` – Login page
+- `/signup` – Signup page
+- `/profile` – Reviewer profile page
+- `/owner/profile` – Owner profile page
+- `/restaurants/new` – Add/post restaurant page
+- `/restaurants/:restaurantId/review` – Review form
+- `/restaurants/:restaurantId/owner-dashboard` – Owner dashboard
+- `/my-activity` – Favorites and history page
+
+## Main Backend Routes
+
+### Authentication
 - `POST /auth/signup`
 - `POST /auth/login`
 
-### User
+### Users
 - `GET /users/me`
 - `PUT /users/me`
 - `GET /users/me/preferences`
@@ -96,21 +179,31 @@ TAVILY_API_KEY=
 - `POST /restaurants/{restaurant_id}/claim`
 - `GET /restaurants/{restaurant_id}/dashboard`
 
-### Reviews and favorites
+### Reviews
 - `POST /reviews/`
 - `GET /reviews/restaurant/{restaurant_id}`
 - `PUT /reviews/{review_id}`
 - `DELETE /reviews/{review_id}`
+
+### Favorites
 - `POST /favorites/{restaurant_id}`
 - `GET /favorites/`
 - `DELETE /favorites/{restaurant_id}`
 
-### AI assistant
+### AI Assistant
 - `POST /ai-assistant/chat`
 
-## Optional Yelp dataset import
+## Optional Seed / Dataset Support
 
-If you have the Yelp Open Dataset business JSON, you can import restaurants:
+This project includes optional scripts for adding sample data.
+
+### Seed sample data
+
+```bash
+python seed_data.py
+```
+
+### Optional Yelp business import
 
 ```bash
 python3 scripts/seed_yelp_business.py \
@@ -120,41 +213,55 @@ python3 scripts/seed_yelp_business.py \
   --truncate
 ```
 
-## Final submission cleanup
+## API Documentation
 
-Do **not** submit:
+The project supports API testing and documentation through Swagger at `/docs`.
 
-- `venv/`
-- `frontend/node_modules/`
-- `__pycache__/`
-- `.git/`
-- `.env`
-- local database files like `test.db`
+You may also use Postman to validate endpoints during development.
 
-Submit:
+## Submission Checklist
 
-- source code
-- `requirements.txt`
+Before submitting, make sure the following are included:
+- Source code
 - `README.md`
-- screenshots/report
+- `requirements.txt`
+- Project report
+- Screenshots of key pages and API testing
 - Swagger screenshots or Postman collection
 
-## Documentation checklist
+## Do Not Submit
 
-Before submission, capture screenshots for:
+Remove or exclude the following from your final submission zip:
+- `venv/`
+- `frontend/node_modules/`
+- any `__pycache__/` folders
+- `.git/`
+- `.env`
+- `.DS_Store`
+- `__MACOSX`
+- merge leftovers such as `.orig` and `.rej` files
+- local database files if any
 
+## Recommended Screenshots for Report
+
+Capture screenshots for:
 - Home page with AI assistant
 - Explore/search page
 - Restaurant details page
-- Reviewer profile and preferences
-- Write/edit review flow
-- Owner profile
+- Reviewer profile page
+- Preferences editor
+- Review create/edit flow
+- Owner profile page
 - Owner dashboard
-- Swagger docs and tested endpoints
+- Swagger docs with tested endpoints
+- Example AI chatbot conversation
 
 ## Notes
 
-- Reviewer preferences now include **search radius**.
-- Owners are automatically linked to restaurants they create.
-- Owner analytics now include **recent reviews**, **rating distribution**, and **public sentiment**.
-- The AI assistant now considers cuisine, budget, locations, dietary needs, ambiance, and sort preference.
+- Reviewer preferences include search-related choices such as cuisine, price range, location, dietary needs, ambiance, and sort preference.
+- The backend serves uploaded files from the `uploads/` directory.
+- The application separates concerns using backend route/schema/service layers and frontend page-based routing.
+
+## Author
+
+Prepared for **DATA 236 Lab 1**.
