@@ -304,15 +304,15 @@ function OwnerProfile() {
               <div className='list-stack'>
                 <div className='list-item'>
                   <strong>Posted by you</strong>
-                  <span className='muted'>{postedRestaurants.length}</span>
+                  <span className='summary-count'>{postedRestaurants.length}</span>
                 </div>
                 <div className='list-item'>
                   <strong>Claimed/managed by you</strong>
-                  <span className='muted'>{claimedRestaurants.length}</span>
+                  <span className='summary-count'>{claimedRestaurants.length}</span>
                 </div>
                 <div className='list-item'>
                   <strong>Total visible in owner profile</strong>
-                  <span className='muted'>{myRestaurants.length}</span>
+                  <span className='summary-count'>{myRestaurants.length}</span>
                 </div>
               </div>
             </section>

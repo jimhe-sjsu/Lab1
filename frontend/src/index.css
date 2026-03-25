@@ -974,3 +974,32 @@ legend {
   }
 }
 
+.list-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.list-item strong {
+  color: #222;
+  font-weight: 600;
+}
+
+.list-item .muted {
+  min-width: 32px;
+  text-align: right;
+  font-weight: 700;
+  color: #d32323;
+}
+
