@@ -1,73 +1,221 @@
-# DATA236 Lab 1 - Restaurant Discovery App
+# DATA 236 Lab 1 – Yelp Prototype
 
-This repository contains the Lab 1 project with a simplified frontend structure for beginner-friendly collaboration.
+A full-stack Yelp-style restaurant discovery and review platform built with **FastAPI**, **MySQL**, **React**, and **Vite**. The project supports two primary personas—**reviewers** and **restaurant owners**—and includes an **AI assistant** for personalized restaurant recommendations.
 
-## Team Split
+## Project Summary
 
-- Partner A (Nikhil): backend (database, FastAPI endpoints, auth, reviews, favorites/history, owner dashboard, AI endpoint, Swagger)
-- Partner B (Jim): frontend (routes, auth UI, profile, explore, details, forms, favorites/history, report screenshots)
+This lab implements a restaurant discovery platform inspired by Yelp. Users can create accounts, browse restaurants, manage favorites, write reviews, and save dining preferences. Restaurant owners can manage restaurant information, claim listings, and view dashboard analytics. The application also includes an AI chatbot endpoint that uses user preferences and natural-language prompts to recommend restaurants.
 
-## Current Repo Structure
+## Features
 
-- `frontend/` - React + Vite application
-  - frontend docs: `frontend/README.md`
+### Reviewer Features
+- User signup and login
+- JWT-protected authenticated routes
+- Profile management
+- Dining preferences management for AI recommendations
+- Restaurant search and browse experience
+- Restaurant detail view
+- Create restaurant listing
+- Add, edit, and delete personal reviews
+- Favorites and activity/history tracking
+- AI chatbot on the home/dashboard experience
 
-## Frontend Status
+### Restaurant Owner Features
+- Owner signup and login
+- Owner profile management
+- Post new restaurant listings
+- Claim existing restaurants
+- Edit restaurant profile details
+- View restaurant reviews (read-only)
+- Owner dashboard with restaurant analytics
 
-Completed:
+### AI Assistant
+- Chat endpoint at `POST /ai-assistant/chat`
+- Uses user preferences and natural-language queries
+- Supports personalized restaurant recommendations
+- Handles refinement/follow-up style conversations
+- Can be extended with Tavily live context support
 
-- Core UI flows for auth, profile, explore, details, forms, favorites/history
-- Responsive navigation and route protection
-- Axios client and auth integration points
+## Tech Stack
 
-Deferred:
+### Backend
+- FastAPI
+- SQLAlchemy
+- MySQL
+- PyMySQL
+- JWT authentication
+- Passlib / bcrypt
+- Python dotenv
+- LangChain-related packages
 
-- Chatbot UI section
+### Frontend
+- React
+- React Router DOM
+- Axios
+- Vite
+- ESLint
 
-## Quick Start
+## Project Structure
+
+```text
+Lab1/
+├── app/
+│   ├── core/
+│   ├── models/
+│   ├── routes/
+│   ├── schemas/
+│   ├── services/
+│   ├── database.py
+│   └── main.py
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── api.js
+│   │   ├── App.jsx
+│   │   ├── auth.js
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   └── vite.config.js
+├── scripts/
+├── uploads/
+├── .env.example
+├── .gitignore
+├── README.md
+├── requirements.txt
+└── seed_data.py
+```
+
+## Backend Setup
+
+1. Create a MySQL database named `lab1_yelp`.
+2. Create a virtual environment.
+3. Install Python dependencies.
+4. Copy `.env.example` to `.env` and update database credentials.
+
+### Commands
 
 ```bash
-# backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 3000
+cp .env.example .env
 ```
 
+### Example `.env`
+
+```env
+DATABASE_URL=mysql+pymysql://root:your_mysql_password@localhost:3306/lab1_yelp
+SECRET_KEY=change-this-to-a-long-random-secret
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+TAVILY_API_KEY=
+```
+
+### Run the backend
+
 ```bash
-# frontend (new terminal)
+uvicorn app.main:app --reload --port 8000
+```
+
+Backend URLs:
+- API root: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+## Frontend Setup
+
+Open a second terminal and run:
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-## Import Yelp Business Dataset (Real Data)
+Frontend URL:
+- `http://localhost:5173`
 
-This project includes a loader script for Yelp Open Dataset business records:
+The Vite app is configured to communicate with the FastAPI backend on port `8000`.
 
-- Script: `scripts/seed_yelp_business.py`
-- Input file: `yelp_academic_dataset_business.json` (JSON lines)
+## Main Frontend Pages
 
-Example import (30 CA restaurants):
+- `/` – Home page
+- `/explore` – Restaurant discovery/search page
+- `/restaurants/:restaurantId` – Restaurant details page
+- `/login` – Login page
+- `/signup` – Signup page
+- `/profile` – Reviewer profile page
+- `/owner/profile` – Owner profile page
+- `/restaurants/new` – Add/post restaurant page
+- `/restaurants/:restaurantId/review` – Review form
+- `/restaurants/:restaurantId/owner-dashboard` – Owner dashboard
+- `/my-activity` – Favorites and history page
+
+## Main Backend Routes
+
+### Authentication
+- `POST /auth/signup`
+- `POST /auth/login`
+
+### Users
+- `GET /users/me`
+- `PUT /users/me`
+- `GET /users/me/preferences`
+- `PUT /users/me/preferences`
+- `GET /users/me/history`
+
+### Restaurants
+- `POST /restaurants/`
+- `GET /restaurants/`
+- `GET /restaurants/search`
+- `GET /restaurants/{restaurant_id}`
+- `PUT /restaurants/{restaurant_id}`
+- `DELETE /restaurants/{restaurant_id}`
+- `POST /restaurants/{restaurant_id}/claim`
+- `GET /restaurants/{restaurant_id}/dashboard`
+
+### Reviews
+- `POST /reviews/`
+- `GET /reviews/restaurant/{restaurant_id}`
+- `PUT /reviews/{review_id}`
+- `DELETE /reviews/{review_id}`
+
+### Favorites
+- `POST /favorites/{restaurant_id}`
+- `GET /favorites/`
+- `DELETE /favorites/{restaurant_id}`
+
+### AI Assistant
+- `POST /ai-assistant/chat`
+
+## Optional Seed / Dataset Support
+
+This project includes optional scripts for adding sample data.
+
+### Seed sample data
 
 ```bash
-cd /Users/jimhe/Documents/sjsu/DATA236/Lab1
-source venv/bin/activate
+python seed_data.py
+```
+
+### Optional Yelp business import
+
+```bash
 python3 scripts/seed_yelp_business.py \
-  --business-json "/Users/jimhe/.cache/kagglehub/datasets/yelp-dataset/yelp-dataset/versions/4/yelp_academic_dataset_business.json" \
+  --business-json /path/to/yelp_academic_dataset_business.json \
   --state CA \
   --limit 30 \
   --truncate
 ```
 
-Useful flags:
+## API Documentation
 
-- `--city "San Jose"` to filter one city.
-- `--min-review-count 50` to keep stronger businesses.
-- `--update-existing` to update duplicate name/address rows instead of skipping.
-- `--dry-run` to preview counts without writing to DB.
+The project supports API testing and documentation through Swagger at `/docs`.
 
-## Notes
+You may also use Postman to validate endpoints during development.
 
-- Frontend auth is wired to the backend API.
-- Some non-auth UI flows still use local placeholder data until the matching backend endpoints are finalized.

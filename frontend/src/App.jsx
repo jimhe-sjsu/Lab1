@@ -7,6 +7,7 @@ import FavoritesHistory from './pages/FavoritesHistory'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import OwnerDashboard from './pages/OwnerDashboard'
+import OwnerProfile from './pages/OwnerProfile'
 import Profile from './pages/Profile'
 import RestaurantDetails from './pages/RestaurantDetails'
 import Signup from './pages/Signup'
@@ -23,15 +24,35 @@ function ProtectedRoute({ children }) {
   return children
 }
 
+function OwnerOnlyRoute({ children }) {
+  const { isAuthenticated, user } = useAuth()
+  const location = useLocation()
+
+  if (!isAuthenticated) {
+    return <Navigate to='/login' replace state={{ from: location.pathname }} />
+  }
+
+  if (user?.role !== 'OWNER') {
+    return <Navigate to='/profile' replace />
+  }
+
+  return children
+}
+
 const publicLinks = [
   { to: '/', label: 'Home' },
   { to: '/explore', label: 'Explore' },
 ]
 
-const privateLinks = [
+const reviewerLinks = [
   { to: '/restaurants/new', label: 'Add Restaurant' },
   { to: '/my-activity', label: 'Favorites/History' },
   { to: '/profile', label: 'Profile' },
+]
+
+const ownerLinks = [
+  { to: '/restaurants/new', label: 'Post Restaurant' },
+  { to: '/owner/profile', label: 'Owner Profile' },
 ]
 
 function Navbar() {
@@ -39,6 +60,8 @@ function Navbar() {
   const { isAuthenticated, logout, user } = useAuth()
 
   const closeMenu = () => setIsOpen(false)
+  const isOwner = user?.role === 'OWNER'
+  const roleLinks = isOwner ? ownerLinks : reviewerLinks
 
   return (
     <header className='navbar-shell'>
@@ -59,7 +82,7 @@ function Navbar() {
           ))}
 
           {isAuthenticated &&
-            privateLinks.map((link) => (
+            roleLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
@@ -138,6 +161,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path='/owner/profile'
+          element={
+            <OwnerOnlyRoute>
+              <OwnerProfile />
+            </OwnerOnlyRoute>
+          }
+        />
+
         <Route
           path='/restaurants/new'
           element={
@@ -146,6 +179,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path='/restaurants/:restaurantId/review'
           element={
@@ -154,14 +188,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path='/restaurants/:restaurantId/owner-dashboard'
           element={
-            <ProtectedRoute>
+            <OwnerOnlyRoute>
               <OwnerDashboard />
-            </ProtectedRoute>
+            </OwnerOnlyRoute>
           }
         />
+
         <Route
           path='/my-activity'
           element={

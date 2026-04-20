@@ -1,0 +1,78 @@
+@@ -54,29 +54,70 @@
+   }
+ 
+   return (
+-    <section className='page narrow-page'>
++    <section className='page'>
+       <h1>Owner Dashboard</h1>
+-      <p className='muted'>Analytics for your claimed restaurant.</p>
++      <p className='muted'>Analytics and recent review activity for your claimed restaurant.</p>
+ 
+-      <div className='form-card'>
+-        <div className='summary-row'>
++      <div className='three-column-grid'>
++        <div className='form-card'>
+           <span className='muted'>Restaurant</span>
+           <strong>{summary?.restaurant}</strong>
+         </div>
+-        <div className='summary-row'>
++        <div className='form-card'>
+           <span className='muted'>Total reviews</span>
+           <strong>{summary?.total_reviews ?? 0}</strong>
+         </div>
+-        <div className='summary-row'>
++        <div className='form-card'>
+           <span className='muted'>Average rating</span>
+           <strong>{Number(summary?.average_rating ?? 0).toFixed(2)}</strong>
+         </div>
+-        <div className='summary-row'>
++        <div className='form-card'>
+           <span className='muted'>Favorite count</span>
+           <strong>{summary?.favorite_count ?? 0}</strong>
+         </div>
++        <div className='form-card'>
++          <span className='muted'>Total views</span>
++          <strong>{summary?.total_views ?? 0}</strong>
++        </div>
++        <div className='form-card'>
++          <span className='muted'>Public sentiment</span>
++          <strong>
++            +{summary?.sentiment_summary?.positive ?? 0} / {summary?.sentiment_summary?.neutral ?? 0} / -
++            {summary?.sentiment_summary?.negative ?? 0}
++          </strong>
++        </div>
+       </div>
+ 
++      <section className='form-card'>
++        <h2>Ratings Distribution</h2>
++        <div className='list-stack'>
++          {Object.entries(summary?.rating_distribution || {})
++            .sort((a, b) => Number(b[0]) - Number(a[0]))
++            .map(([star, count]) => (
++              <div key={star} className='summary-row'>
++                <span>{star} star</span>
++                <strong>{count}</strong>
++              </div>
++            ))}
++        </div>
++      </section>
++
++      <section className='form-card'>
++        <h2>Recent Reviews</h2>
++        <div className='list-stack'>
++          {(summary?.recent_reviews || []).map((review) => (
++            <div key={review.id} className='list-item'>
++              <strong>
++                {review.reviewer_name} • {review.rating}/5
++              </strong>
++              <span className='muted'>{new Date(review.created_at).toLocaleString()}</span>
++              <span>{review.comment || 'No comment provided.'}</span>
++            </div>
++          ))}
++          {summary?.recent_reviews?.length === 0 && <p className='muted'>No recent reviews yet.</p>}
++        </div>
++      </section>
++
+       <Link to={`/restaurants/${restaurantId}`} className='btn btn-secondary'>
+         Back to Restaurant
+       </Link>

@@ -7,7 +7,7 @@ from app.core.security import get_current_user
 from app.database import get_db
 from app.models.restaurant import Restaurant
 from app.models.review import Review
-from app.models.user import User, UserPreference, UserRole
+from app.models.user import User, UserPreference
 from app.schemas.user import (
     RestaurantHistoryItem,
     ReviewHistoryItem,
@@ -20,7 +20,6 @@ from app.schemas.user import (
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-
 PROFILE_FIELDS = [
     "name",
     "email",
@@ -32,7 +31,9 @@ PROFILE_FIELDS = [
     "languages",
     "gender",
     "profile_image_url",
+    "restaurant_location",
 ]
+
 
 
 def _to_csv(values: List[str]) -> str:
@@ -40,10 +41,12 @@ def _to_csv(values: List[str]) -> str:
     return ",".join(cleaned)
 
 
-def _from_csv(value: str) -> List[str]:
+
+def _from_csv(value: str | None) -> List[str]:
     if not value:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
 
 
 def _serialize_profile(user: User) -> UserProfileResponse:
@@ -60,7 +63,9 @@ def _serialize_profile(user: User) -> UserProfileResponse:
         languages=user.languages,
         gender=user.gender,
         profile_image_url=user.profile_image_url,
+        restaurant_location=user.restaurant_location,
     )
+
 
 
 def _get_or_create_preferences(db: Session, user_id: int) -> UserPreference:
@@ -75,12 +80,14 @@ def _get_or_create_preferences(db: Session, user_id: int) -> UserPreference:
     return preferences
 
 
+
 def _serialize_preferences(preferences: UserPreference) -> UserPreferencesResponse:
     return UserPreferencesResponse(
         user_id=preferences.user_id,
         preferred_cuisines=_from_csv(preferences.preferred_cuisines),
         price_range=preferences.price_range,
         preferred_locations=_from_csv(preferences.preferred_locations),
+        search_radius=preferences.search_radius,
         dietary_needs=_from_csv(preferences.dietary_needs),
         ambiance_preferences=_from_csv(preferences.ambiance_preferences),
         sort_preference=preferences.sort_preference,
@@ -105,12 +112,6 @@ def update_me(
         existing = db.query(User).filter(User.email == new_email, User.id != current_user.id).first()
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
-
-    if "role" in update_data and update_data["role"]:
-        try:
-            current_user.role = UserRole(update_data["role"])
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail="Invalid role value") from error
 
     for field in PROFILE_FIELDS:
         if field in update_data:
@@ -141,6 +142,7 @@ def update_preferences(
     preferences.preferred_cuisines = _to_csv(updates.preferred_cuisines)
     preferences.price_range = updates.price_range
     preferences.preferred_locations = _to_csv(updates.preferred_locations)
+    preferences.search_radius = updates.search_radius
     preferences.dietary_needs = _to_csv(updates.dietary_needs)
     preferences.ambiance_preferences = _to_csv(updates.ambiance_preferences)
     preferences.sort_preference = updates.sort_preference

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,10 +15,11 @@ class UserProfileBase(BaseModel):
     languages: Optional[str] = None
     gender: Optional[str] = None
     profile_image_url: Optional[str] = None
+    restaurant_location: Optional[str] = None
 
 
 class UserProfileUpdate(UserProfileBase):
-    role: Optional[Literal["USER", "OWNER"]] = None
+    pass
 
 
 class UserProfileResponse(UserProfileBase):
@@ -33,6 +34,7 @@ class UserPreferencesBase(BaseModel):
     preferred_cuisines: List[str] = Field(default_factory=list)
     price_range: Optional[str] = None
     preferred_locations: List[str] = Field(default_factory=list)
+    search_radius: Optional[int] = None
     dietary_needs: List[str] = Field(default_factory=list)
     ambiance_preferences: List[str] = Field(default_factory=list)
     sort_preference: Optional[str] = None
@@ -44,6 +46,9 @@ class UserPreferencesUpdate(UserPreferencesBase):
 
 class UserPreferencesResponse(UserPreferencesBase):
     user_id: int
+
+    class Config:
+        from_attributes = True
 
 
 class ReviewHistoryItem(BaseModel):

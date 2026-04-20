@@ -10,8 +10,26 @@ import {
   removeFavorite,
   updateRestaurant,
   updateReview,
+  uploadImage,
 } from '../api'
 import { useAuth } from '../auth'
+
+function buildRestaurantEditData(restaurant) {
+  return {
+    name: restaurant?.name || '',
+    cuisine: restaurant?.cuisine || '',
+    address: restaurant?.address || '',
+    city: restaurant?.city || '',
+    state: restaurant?.state || '',
+    zipCode: restaurant?.zipCode || '',
+    description: restaurant?.description || '',
+    contactPhone: restaurant?.contactPhone || '',
+    hoursText: restaurant?.hoursText || '',
+    amenitiesText: restaurant?.amenitiesText || '',
+    photoUrl: restaurant?.photoUrl || '',
+    priceLevel: restaurant?.priceLevel || '$$',
+  }
+}
 
 function RestaurantDetails() {
   const { restaurantId } = useParams()
@@ -27,14 +45,8 @@ function RestaurantDetails() {
   const [editingReview, setEditingReview] = useState({ rating: 5, comment: '', photoUrl: '' })
 
   const [isEditingRestaurant, setIsEditingRestaurant] = useState(false)
-  const [restaurantEdit, setRestaurantEdit] = useState({
-    description: '',
-    contactPhone: '',
-    hoursText: '',
-    amenitiesText: '',
-    photoUrl: '',
-    priceLevel: '$$',
-  })
+  const [restaurantEdit, setRestaurantEdit] = useState(buildRestaurantEditData(null))
+  const [restaurantPhotoFile, setRestaurantPhotoFile] = useState(null)
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -42,6 +54,8 @@ function RestaurantDetails() {
 
   const userId = user?.userId
   const isOwnerRole = user?.role === 'OWNER'
+  const isReviewer = user?.role !== 'OWNER'
+  const canWriteReview = isAuthenticated && isReviewer
 
   useEffect(() => {
     let isMounted = true
@@ -57,14 +71,7 @@ function RestaurantDetails() {
 
         setRestaurant(data.restaurant)
         setReviews(data.reviews)
-        setRestaurantEdit({
-          description: data.restaurant.description || '',
-          contactPhone: data.restaurant.contactPhone || '',
-          hoursText: data.restaurant.hoursText || '',
-          amenitiesText: data.restaurant.amenitiesText || '',
-          photoUrl: data.restaurant.imageUrl || '',
-          priceLevel: data.restaurant.priceLevel || '$$',
-        })
+        setRestaurantEdit(buildRestaurantEditData(data.restaurant))
 
         if (isAuthenticated) {
           const favorites = await fetchFavorites()
@@ -130,12 +137,24 @@ function RestaurantDetails() {
     setActionError('')
 
     try {
+      let uploadedPhotoUrl = restaurantEdit.photoUrl.trim() || null
+      if (restaurantPhotoFile) {
+        const upload = await uploadImage(restaurantPhotoFile)
+        uploadedPhotoUrl = upload.url
+      }
+
       const updated = await updateRestaurant(restaurant.id, {
+        name: restaurantEdit.name,
+        cuisine_type: restaurantEdit.cuisine,
+        address: restaurantEdit.address,
+        city: restaurantEdit.city,
+        state: restaurantEdit.state.toUpperCase().slice(0, 2),
+        zip_code: restaurantEdit.zipCode,
         description: restaurantEdit.description,
         contact_phone: restaurantEdit.contactPhone,
         hours_text: restaurantEdit.hoursText,
         amenities_text: restaurantEdit.amenitiesText,
-        photo_url: restaurantEdit.photoUrl,
+        photo_url: uploadedPhotoUrl,
         price_tier: restaurantEdit.priceLevel,
       })
 
@@ -144,6 +163,8 @@ function RestaurantDetails() {
         rating: prev?.rating ?? updated.rating,
         reviewCount: prev?.reviewCount ?? updated.reviewCount,
       }))
+      setRestaurantEdit(buildRestaurantEditData(updated))
+      setRestaurantPhotoFile(null)
       setIsEditingRestaurant(false)
     } catch (requestError) {
       setActionError(requestError?.response?.data?.detail || 'Could not update restaurant listing.')
@@ -240,26 +261,40 @@ function RestaurantDetails() {
           <p>{restaurant.description}</p>
 
           <div className='hero-actions'>
-            <Link to={`/restaurants/${restaurant.id}/review`} className='btn btn-primary'>
-              Write Review Form
-            </Link>
+            {canWriteReview && (
+              <Link to={`/restaurants/${restaurant.id}/review`} className='btn btn-primary'>
+                Write Review
+              </Link>
+            )}
+
             {isAuthenticated && (
               <button type='button' className='btn btn-secondary' onClick={toggleFavorite}>
                 {isFavorite ? 'Remove Favorite' : 'Add Favorite'}
               </button>
             )}
+
             {canClaim && (
               <button type='button' className='btn btn-secondary' onClick={handleClaimRestaurant}>
                 Claim Restaurant
               </button>
             )}
+
             {isClaimedByCurrentOwner && (
-              <button type='button' className='btn btn-secondary' onClick={() => navigate(`/restaurants/${restaurant.id}/owner-dashboard`)}>
+              <button
+                type='button'
+                className='btn btn-secondary'
+                onClick={() => navigate(`/restaurants/${restaurant.id}/owner-dashboard`)}
+              >
                 Owner Dashboard
               </button>
             )}
+
             {canEditRestaurant && (
-              <button type='button' className='btn btn-secondary' onClick={() => setIsEditingRestaurant((prev) => !prev)}>
+              <button
+                type='button'
+                className='btn btn-secondary'
+                onClick={() => setIsEditingRestaurant((prev) => !prev)}
+              >
                 {isEditingRestaurant ? 'Close Edit' : 'Edit Listing'}
               </button>
             )}
@@ -272,58 +307,142 @@ function RestaurantDetails() {
       {isEditingRestaurant && canEditRestaurant && (
         <section className='form-card'>
           <h2>Edit Listing</h2>
-          <p className='muted'>Owners can update photo URL and listing details.</p>
+          <p className='muted'>Update cuisine, location, contact info, photo, pricing tier, amenities, and hours.</p>
 
           <form className='inline-form' onSubmit={saveRestaurantEdits}>
-            <label htmlFor='photoUrl'>Photo URL
+            <div className='split-grid'>
+              <label htmlFor='editName'>
+                Restaurant name
+                <input
+                  id='editName'
+                  value={restaurantEdit.name}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, name: event.target.value }))}
+                />
+              </label>
+
+              <label htmlFor='editCuisine'>
+                Cuisine type
+                <input
+                  id='editCuisine'
+                  value={restaurantEdit.cuisine}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, cuisine: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <label htmlFor='editAddress'>
+              Address
               <input
-                id='photoUrl'
+                id='editAddress'
+                value={restaurantEdit.address}
+                onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, address: event.target.value }))}
+              />
+            </label>
+
+            <div className='split-grid'>
+              <label htmlFor='editCity'>
+                City
+                <input
+                  id='editCity'
+                  value={restaurantEdit.city}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, city: event.target.value }))}
+                />
+              </label>
+
+              <label htmlFor='editState'>
+                State code
+                <input
+                  id='editState'
+                  maxLength={2}
+                  value={restaurantEdit.state}
+                  onChange={(event) =>
+                    setRestaurantEdit((prev) => ({
+                      ...prev,
+                      state: event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2),
+                    }))
+                  }
+                />
+              </label>
+
+              <label htmlFor='editZipCode'>
+                ZIP code
+                <input
+                  id='editZipCode'
+                  value={restaurantEdit.zipCode}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, zipCode: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className='split-grid'>
+              <label htmlFor='editContactPhone'>
+                Contact phone
+                <input
+                  id='editContactPhone'
+                  value={restaurantEdit.contactPhone}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, contactPhone: event.target.value }))}
+                />
+              </label>
+
+              <label htmlFor='editHoursText'>
+                Hours of operation
+                <input
+                  id='editHoursText'
+                  value={restaurantEdit.hoursText}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, hoursText: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className='split-grid'>
+              <label htmlFor='editPriceTier'>
+                Price tier
+                <select
+                  id='editPriceTier'
+                  value={restaurantEdit.priceLevel}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, priceLevel: event.target.value }))}
+                >
+                  <option value='$'>$</option>
+                  <option value='$$'>$$</option>
+                  <option value='$$$'>$$$</option>
+                  <option value='$$$$'>$$$$</option>
+                </select>
+              </label>
+
+              <label htmlFor='editAmenitiesText'>
+                Amenities
+                <input
+                  id='editAmenitiesText'
+                  value={restaurantEdit.amenitiesText}
+                  onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, amenitiesText: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <label htmlFor='editPhotoUrl'>
+              Photo URL
+              <input
+                id='editPhotoUrl'
                 value={restaurantEdit.photoUrl}
                 onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, photoUrl: event.target.value }))}
               />
             </label>
 
-            <label htmlFor='contactPhone'>Contact phone
+            <label htmlFor='editPhotoFile'>
+              Upload restaurant photo
               <input
-                id='contactPhone'
-                value={restaurantEdit.contactPhone}
-                onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, contactPhone: event.target.value }))}
+                id='editPhotoFile'
+                type='file'
+                accept='image/*'
+                onChange={(event) => setRestaurantPhotoFile(event.target.files?.[0] || null)}
               />
             </label>
 
-            <label htmlFor='hoursText'>Hours
-              <input
-                id='hoursText'
-                value={restaurantEdit.hoursText}
-                onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, hoursText: event.target.value }))}
-              />
-            </label>
-
-            <label htmlFor='amenitiesText'>Amenities
-              <input
-                id='amenitiesText'
-                value={restaurantEdit.amenitiesText}
-                onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, amenitiesText: event.target.value }))}
-              />
-            </label>
-
-            <label htmlFor='priceTier'>Price tier
-              <select
-                id='priceTier'
-                value={restaurantEdit.priceLevel}
-                onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, priceLevel: event.target.value }))}
-              >
-                <option value='$'>$</option>
-                <option value='$$'>$$</option>
-                <option value='$$$'>$$$</option>
-                <option value='$$$$'>$$$$</option>
-              </select>
-            </label>
-
-            <label htmlFor='description'>Description
+            <label htmlFor='editDescription'>
+              Description
               <textarea
-                id='description'
-                rows={3}
+                id='editDescription'
+                rows={4}
                 value={restaurantEdit.description}
                 onChange={(event) => setRestaurantEdit((prev) => ({ ...prev, description: event.target.value }))}
               />
@@ -336,7 +455,7 @@ function RestaurantDetails() {
         </section>
       )}
 
-      {isAuthenticated && (
+      {canWriteReview && (
         <section className='form-card'>
           <h2>Quick Review</h2>
           <form onSubmit={handleCreateReview} className='inline-form'>
@@ -388,7 +507,7 @@ function RestaurantDetails() {
         <h2>Reviews</h2>
         <div className='review-list'>
           {reviews.map((review) => {
-            const canEdit = isAuthenticated && review.userId === userId
+            const canEditThisReview = isReviewer && isAuthenticated && review.userId === userId
             const isEditing = editingReviewId === review.id
 
             return (
@@ -454,7 +573,7 @@ function RestaurantDetails() {
                   </>
                 )}
 
-                {canEdit && !isEditing && (
+                {canEditThisReview && !isEditing && (
                   <div className='hero-actions'>
                     <button type='button' className='btn btn-secondary' onClick={() => startEdit(review)}>
                       Edit

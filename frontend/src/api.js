@@ -1,9 +1,10 @@
 import axios from 'axios'
 
 const TOKEN_KEY = 'lab1_access_token'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',
+  baseURL: API_BASE_URL,
   timeout: 10000,
 })
 
@@ -25,6 +26,25 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+function resolveAssetUrl(value) {
+  if (!value) {
+    return ''
+  }
+
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) {
+    return value
+  }
+
+  if (value.startsWith('/')) {
+    if (API_BASE_URL) {
+      return `${API_BASE_URL.replace(/\/$/, '')}${value}`
+    }
+    return value
+  }
+
+  return value
+}
 
 function normalizeRestaurant(restaurant, extras = {}) {
   if (!restaurant) {
@@ -50,7 +70,9 @@ function normalizeRestaurant(restaurant, extras = {}) {
     contactPhone: restaurant.contact_phone || '',
     hoursText: restaurant.hours_text || '',
     amenitiesText: restaurant.amenities_text || '',
-    imageUrl: restaurant.photo_url || fallbackImageUrl,
+    photoUrl: resolveAssetUrl(restaurant.photo_url),
+    imageUrl: resolveAssetUrl(restaurant.photo_url) || fallbackImageUrl,
+    viewCount: Number(restaurant.view_count ?? 0),
   }
 }
 
@@ -59,8 +81,8 @@ function normalizeReview(review) {
     id: review.id,
     rating: Number(review.rating),
     comment: review.comment || '',
-    photoUrl: review.photo_url || '',
-    author: review.user_id ? `User #${review.user_id}` : 'Anonymous',
+    photoUrl: resolveAssetUrl(review.photo_url),
+    author: review.reviewer_name || (review.user_id ? `User #${review.user_id}` : 'Anonymous'),
     userId: review.user_id,
     createdAt: review.created_at,
     updatedAt: review.updated_at,
@@ -100,6 +122,11 @@ async function fetchRestaurantDetails(restaurantId) {
     }),
     reviews: (data.reviews || []).map((review) => normalizeReview(review)),
   }
+}
+
+async function fetchReviewsForRestaurant(restaurantId) {
+  const { data } = await api.get(`/reviews/restaurant/${restaurantId}`)
+  return (data || []).map((review) => normalizeReview(review))
 }
 
 async function createRestaurant(payload) {
@@ -192,6 +219,15 @@ async function chatWithAssistant(payload) {
   return data
 }
 
+async function uploadImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/uploads/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
 export {
   TOKEN_KEY,
   addFavorite,
@@ -208,14 +244,17 @@ export {
   fetchRestaurantDetails,
   fetchRestaurantOwnerDashboard,
   fetchRestaurants,
+  fetchReviewsForRestaurant,
   fetchUserHistory,
   normalizeRestaurant,
   removeFavorite,
+  resolveAssetUrl,
   searchRestaurants,
   updateCurrentUser,
   updatePreferences,
   updateRestaurant,
   updateReview,
+  uploadImage,
 }
 
 export default api

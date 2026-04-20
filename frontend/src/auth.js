@@ -97,25 +97,29 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const signup = async ({ fullName, email, password, role = 'USER' }) => {
+  const signup = async ({ fullName, email, password, role = 'USER', restaurantLocation = '' }) => {
     if (!fullName || !email || !password) {
       throw new Error('Name, email, and password are required.')
     }
 
+    if (role === 'OWNER' && !restaurantLocation.trim()) {
+      throw new Error('Restaurant location is required for owner signup.')
+    }
+
     setIsLoading(true)
     try {
-      await api.post('/auth/signup', null, {
-        params: {
-          name: fullName,
-          email,
-          password,
-          role,
-        },
+      await api.post('/auth/signup', {
+        name: fullName,
+        email,
+        password,
+        role,
+        restaurant_location: role === 'OWNER' ? restaurantLocation.trim() : null,
       })
 
       await login({ email, password })
     } catch (error) {
-      const message = error?.response?.data?.detail || 'Signup failed. Please try again.'
+      const detail = error?.response?.data?.detail
+      const message = Array.isArray(detail) ? detail[0]?.msg : detail || 'Signup failed. Please try again.'
       throw new Error(message)
     } finally {
       setIsLoading(false)

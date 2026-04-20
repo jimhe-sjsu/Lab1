@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.review import ReviewResponse
 
 
 class RestaurantBase(BaseModel):
@@ -43,6 +45,13 @@ class RestaurantResponse(RestaurantBase):
     owner_id: Optional[int]
     average_rating: float = 0
     review_count: int = 0
+    view_count: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RestaurantDetailsResponse(BaseModel):
+    restaurant: RestaurantResponse
+    average_rating: float
+    review_count: int
+    reviews: List[ReviewResponse]

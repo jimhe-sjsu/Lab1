@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { createReview, fetchRestaurantDetails } from '../api'
+import { createReview, fetchRestaurantDetails, uploadImage } from '../api'
 
 function WriteReview() {
   const { restaurantId } = useParams()
   const navigate = useNavigate()
   const [restaurant, setRestaurant] = useState(null)
   const [form, setForm] = useState({ rating: 5, comment: '', photoUrl: '' })
+  const [reviewPhotoFile, setReviewPhotoFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -58,11 +59,17 @@ function WriteReview() {
     setIsSubmitting(true)
 
     try {
+      let uploadedPhotoUrl = form.photoUrl.trim() || null
+      if (reviewPhotoFile) {
+        const upload = await uploadImage(reviewPhotoFile)
+        uploadedPhotoUrl = upload.url
+      }
+
       await createReview({
         restaurant_id: Number(restaurantId),
         rating: form.rating,
         comment: form.comment,
-        photo_url: form.photoUrl.trim() || null,
+        photo_url: uploadedPhotoUrl,
       })
       navigate(`/restaurants/${restaurantId}`)
     } catch (requestError) {
@@ -90,22 +97,13 @@ function WriteReview() {
         </select>
 
         <label htmlFor='comment'>Comment</label>
-        <textarea
-          id='comment'
-          rows={5}
-          required
-          value={form.comment}
-          onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))}
-        />
+        <textarea id='comment' rows={5} required value={form.comment} onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))} />
 
         <label htmlFor='photoUrl'>Photo URL (optional)</label>
-        <input
-          id='photoUrl'
-          type='url'
-          placeholder='https://...'
-          value={form.photoUrl}
-          onChange={(event) => setForm((prev) => ({ ...prev, photoUrl: event.target.value }))}
-        />
+        <input id='photoUrl' type='url' placeholder='https://...' value={form.photoUrl} onChange={(event) => setForm((prev) => ({ ...prev, photoUrl: event.target.value }))} />
+
+        <label htmlFor='reviewPhotoFile'>Upload review photo</label>
+        <input id='reviewPhotoFile' type='file' accept='image/*' onChange={(event) => setReviewPhotoFile(event.target.files?.[0] || null)} />
 
         {error && <p className='error-text'>{error}</p>}
 
