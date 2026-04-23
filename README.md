@@ -1,221 +1,354 @@
-# DATA 236 Lab 1 – Yelp Prototype
+# DATA 236 Lab 2 – Yelp Microservices Prototype
 
-A full-stack Yelp-style restaurant discovery and review platform built with **FastAPI**, **MySQL**, **React**, and **Vite**. The project supports two primary personas—**reviewers** and **restaurant owners**—and includes an **AI assistant** for personalized restaurant recommendations.
+This repository upgrades the Lab 1 Yelp-style prototype into the Lab 2 architecture required by the assignment:
 
-## Project Summary
+- 4 backend services: `user-service`, `owner-service`, `restaurant-service`, `review-service`
+- 1 frontend container served by Nginx
+- MongoDB for operational data
+- Kafka for asynchronous review create/update/delete flows
+- Redux Toolkit in the React frontend
+- Docker Compose for local orchestration
+- Kubernetes manifests for local clusters and AWS EKS deployment
 
-This lab implements a restaurant discovery platform inspired by Yelp. Users can create accounts, browse restaurants, manage favorites, write reviews, and save dining preferences. Restaurant owners can manage restaurant information, claim listings, and view dashboard analytics. The application also includes an AI chatbot endpoint that uses user preferences and natural-language prompts to recommend restaurants.
+The original Lab 1 FastAPI + MySQL code is still present under `app/` so the migration script can copy existing relational data into MongoDB.
 
-## Features
+## Architecture
 
-### Reviewer Features
-- User signup and login
-- JWT-protected authenticated routes
-- Profile management
-- Dining preferences management for AI recommendations
-- Restaurant search and browse experience
-- Restaurant detail view
-- Create restaurant listing
-- Add, edit, and delete personal reviews
-- Favorites and activity/history tracking
-- AI chatbot on the home/dashboard experience
+### Service split
 
-### Restaurant Owner Features
-- Owner signup and login
-- Owner profile management
-- Post new restaurant listings
-- Claim existing restaurants
-- Edit restaurant profile details
-- View restaurant reviews (read-only)
-- Owner dashboard with restaurant analytics
+- `services/user_service/app.py`
+  - reviewer signup/login/logout
+  - profile and dining preferences
+  - favorites/history
+  - uploads
+  - AI assistant
+- `services/owner_service/app.py`
+  - owner signup/login/logout
+  - owner profile
+  - restaurant claim flow
+  - owner dashboard
+- `services/restaurant_service/app.py`
+  - restaurant CRUD
+  - search/list/detail APIs
+- `services/review_service/app.py`
+  - review listing
+  - async review create/update/delete producer endpoints
+  - review job status API
+- `services/review_service/worker.py`
+  - Kafka consumer that processes review events and writes to MongoDB
 
-### AI Assistant
-- Chat endpoint at `POST /ai-assistant/chat`
-- Uses user preferences and natural-language queries
-- Supports personalized restaurant recommendations
-- Handles refinement/follow-up style conversations
-- Can be extended with Tavily live context support
+### Shared backend package
 
-## Tech Stack
-
-### Backend
-- FastAPI
-- SQLAlchemy
-- MySQL
-- PyMySQL
-- JWT authentication
-- Passlib / bcrypt
-- Python dotenv
-- LangChain-related packages
+`backend_shared/` contains shared configuration, MongoDB helpers, JWT/session handling, serializers, AI helpers, ID counters, Kafka utilities, activity logging, and review job helpers.
 
 ### Frontend
-- React
-- React Router DOM
-- Axios
-- Vite
-- ESLint
 
-## Project Structure
+The React app now uses Redux Toolkit slices for:
+
+- `auth`
+- `restaurants`
+- `reviews`
+- `favourites`
+
+The frontend talks to the split services through these prefixes:
+
+- `/api/user/*`
+- `/api/owner/*`
+- `/api/restaurant/*`
+- `/api/review/*`
+
+In Docker and Kubernetes, the frontend Nginx container reverse-proxies those paths to the appropriate services.
+
+## Data model
+
+MongoDB collections used by the Lab 2 runtime:
+
+- `users`
+- `preferences`
+- `sessions`
+- `restaurants`
+- `reviews`
+- `favorites`
+- `activity_logs`
+- `review_jobs`
+- `counters`
+
+The `sessions` collection uses a TTL index on `expires_at`.
+
+## Kafka flow
+
+Kafka is used for asynchronous review mutations.
+
+Topics:
+
+- `review.created`
+- `review.updated`
+- `review.deleted`
+- `booking.status`
+
+Flow:
+
+1. Frontend submits a review mutation to `review-service`.
+2. `review-service` creates a job record in `review_jobs` and returns `202 Accepted`.
+3. `review-service` publishes an event to Kafka.
+4. `review-worker` consumes the event and applies the MongoDB write.
+5. `review-worker` publishes completion or failure to `booking.status`.
+6. `review-service` consumes `booking.status` and updates the stored job status.
+7. Frontend polls `GET /review-jobs/{job_id}` until the job completes.
+
+## Repository layout
 
 ```text
 Lab1/
-├── app/
-│   ├── core/
-│   ├── models/
-│   ├── routes/
-│   ├── schemas/
-│   ├── services/
-│   ├── database.py
-│   └── main.py
+├── app/                         # Original Lab 1 FastAPI + SQLAlchemy code retained for migration
+├── backend_shared/              # Shared Lab 2 backend package
+├── deploy/
+│   └── k8s/                     # Kubernetes manifests
 ├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── pages/
-│   │   ├── api.js
-│   │   ├── App.jsx
-│   │   ├── auth.js
-│   │   ├── index.css
-│   │   └── main.jsx
-│   ├── eslint.config.js
-│   ├── index.html
-│   ├── package.json
-│   ├── package-lock.json
-│   └── vite.config.js
+│   ├── nginx/
+│   └── src/
+│       └── store/               # Redux Toolkit store and slices
+├── jmeter/                      # JMeter load-test plan
 ├── scripts/
+│   └── migrate_mysql_to_mongo.py
+├── services/                    # Lab 2 FastAPI service entrypoints and review worker
 ├── uploads/
-├── .env.example
-├── .gitignore
-├── README.md
+├── Dockerfile.user-service
+├── Dockerfile.owner-service
+├── Dockerfile.restaurant-service
+├── Dockerfile.review-service
+├── docker-compose.yml
 ├── requirements.txt
-└── seed_data.py
+└── README.md
 ```
 
-## Backend Setup
+## Environment configuration
 
-1. Create a MySQL database named `lab1_yelp`.
-2. Create a virtual environment.
-3. Install Python dependencies.
-4. Copy `.env.example` to `.env` and update database credentials.
+Copy the root `.env.example` to `.env` for Python services:
 
-### Commands
+```bash
+cp .env.example .env
+```
+
+Important variables:
+
+- `DATABASE_URL` for the Lab 1 MySQL source database
+- `MONGODB_URL`
+- `MONGODB_DATABASE`
+- `JWT_SECRET_KEY`
+- `KAFKA_BOOTSTRAP_SERVERS`
+- `KAFKA_TOPIC_REVIEW_CREATED`
+- `KAFKA_TOPIC_REVIEW_UPDATED`
+- `KAFKA_TOPIC_REVIEW_DELETED`
+- `KAFKA_TOPIC_REVIEW_STATUS`
+- `REVIEW_STATUS_CONSUMER_ENABLED`
+- `CORS_ORIGINS`
+
+Copy `frontend/.env.example` to `frontend/.env` if you want to override the default frontend proxy paths during local Vite development.
+
+## Local development
+
+### 1. Install Python dependencies
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 ```
 
-### Example `.env`
-
-```env
-DATABASE_URL=mysql+pymysql://root:your_mysql_password@localhost:3306/lab1_yelp
-SECRET_KEY=change-this-to-a-long-random-secret
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-TAVILY_API_KEY=
-```
-
-### Run the backend
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-Backend URLs:
-- API root: `http://localhost:8000`
-- Swagger UI: `http://localhost:8000/docs`
-- OpenAPI JSON: `http://localhost:8000/openapi.json`
-
-## Frontend Setup
-
-Open a second terminal and run:
+### 2. Install frontend dependencies
 
 ```bash
 cd frontend
 npm install
+cd ..
+```
+
+### 3. Start MongoDB and Kafka locally
+
+You can use the Docker Compose services below or your own local services.
+
+### 4. Migrate Lab 1 MySQL data to MongoDB
+
+Make sure MySQL is running and `DATABASE_URL` points at your Lab 1 database.
+
+```bash
+python3 scripts/migrate_mysql_to_mongo.py --drop-existing
+```
+
+### 5. Run the backend services
+
+Open separate terminals or use a process manager:
+
+```bash
+uvicorn services.user_service.app:app --reload --port 8001
+uvicorn services.owner_service.app:app --reload --port 8002
+uvicorn services.restaurant_service.app:app --reload --port 8003
+uvicorn services.review_service.app:app --reload --port 8004
+python3 -m services.review_service.worker
+```
+
+### 6. Run the frontend
+
+```bash
+cd frontend
 npm run dev
 ```
 
-Frontend URL:
-- `http://localhost:5173`
+Local URLs:
 
-The Vite app is configured to communicate with the FastAPI backend on port `8000`.
+- Frontend: `http://localhost:5173`
+- User service: `http://localhost:8001/docs`
+- Owner service: `http://localhost:8002/docs`
+- Restaurant service: `http://localhost:8003/docs`
+- Review service: `http://localhost:8004/docs`
 
-## Main Frontend Pages
+## Docker Compose
 
-- `/` – Home page
-- `/explore` – Restaurant discovery/search page
-- `/restaurants/:restaurantId` – Restaurant details page
-- `/login` – Login page
-- `/signup` – Signup page
-- `/profile` – Reviewer profile page
-- `/owner/profile` – Owner profile page
-- `/restaurants/new` – Add/post restaurant page
-- `/restaurants/:restaurantId/review` – Review form
-- `/restaurants/:restaurantId/owner-dashboard` – Owner dashboard
-- `/my-activity` – Favorites and history page
+The repository includes a full local stack:
 
-## Main Backend Routes
+- `frontend`
+- `user-service`
+- `owner-service`
+- `restaurant-service`
+- `review-service`
+- `review-worker`
+- `mongodb`
+- `kafka`
 
-### Authentication
-- `POST /auth/signup`
-- `POST /auth/login`
-
-### Users
-- `GET /users/me`
-- `PUT /users/me`
-- `GET /users/me/preferences`
-- `PUT /users/me/preferences`
-- `GET /users/me/history`
-
-### Restaurants
-- `POST /restaurants/`
-- `GET /restaurants/`
-- `GET /restaurants/search`
-- `GET /restaurants/{restaurant_id}`
-- `PUT /restaurants/{restaurant_id}`
-- `DELETE /restaurants/{restaurant_id}`
-- `POST /restaurants/{restaurant_id}/claim`
-- `GET /restaurants/{restaurant_id}/dashboard`
-
-### Reviews
-- `POST /reviews/`
-- `GET /reviews/restaurant/{restaurant_id}`
-- `PUT /reviews/{review_id}`
-- `DELETE /reviews/{review_id}`
-
-### Favorites
-- `POST /favorites/{restaurant_id}`
-- `GET /favorites/`
-- `DELETE /favorites/{restaurant_id}`
-
-### AI Assistant
-- `POST /ai-assistant/chat`
-
-## Optional Seed / Dataset Support
-
-This project includes optional scripts for adding sample data.
-
-### Seed sample data
+Run:
 
 ```bash
-python seed_data.py
+docker compose up --build
 ```
 
-### Optional Yelp business import
+Docker Compose URLs:
+
+- Frontend: `http://localhost:8080`
+- User service: `http://localhost:8001/docs`
+- Owner service: `http://localhost:8002/docs`
+- Restaurant service: `http://localhost:8003/docs`
+- Review service: `http://localhost:8004/docs`
+- MongoDB: `mongodb://localhost:27017`
+
+The frontend container reverse-proxies service requests so the browser only needs the frontend origin.
+
+## Kubernetes
+
+All Kubernetes manifests are under `deploy/k8s/`.
+
+Resources included:
+
+- namespace
+- ConfigMap
+- Secret
+- MongoDB Deployment + Service
+- Kafka Deployment + Service
+- `user-service` Deployment + Service
+- `owner-service` Deployment + Service
+- `restaurant-service` Deployment + Service
+- `review-service` Deployment + Service
+- `review-worker` Deployment
+- `frontend` Deployment + LoadBalancer Service
+
+### Apply locally
 
 ```bash
-python3 scripts/seed_yelp_business.py \
-  --business-json /path/to/yelp_academic_dataset_business.json \
-  --state CA \
-  --limit 30 \
-  --truncate
+kubectl apply -k deploy/k8s
 ```
 
-## API Documentation
+For local clusters without a cloud load balancer:
 
-The project supports API testing and documentation through Swagger at `/docs`.
+```bash
+kubectl port-forward svc/frontend 8080:80 -n lab2-yelp
+```
 
-You may also use Postman to validate endpoints during development.
+### Image names
 
+The manifests reference these image tags:
+
+- `lab2-yelp/frontend:latest`
+- `lab2-yelp/user-service:latest`
+- `lab2-yelp/owner-service:latest`
+- `lab2-yelp/restaurant-service:latest`
+- `lab2-yelp/review-service:latest`
+
+Update the image names or retag them before deploying to EKS/ECR.
+
+## AWS EKS deployment flow
+
+One workable submission flow:
+
+1. Build and tag the 5 scored images locally.
+2. Push them to Amazon ECR.
+3. Update the Kubernetes manifests to use your ECR image URIs.
+4. Create or connect to an EKS cluster.
+5. Apply `deploy/k8s/`.
+6. Verify pods and services are running.
+7. Capture screenshots of:
+   - running services/pods
+   - frontend exposed from AWS
+   - Redux DevTools state
+   - JMeter graphs/results
+
+Useful commands:
+
+```bash
+kubectl get pods -n lab2-yelp
+kubectl get svc -n lab2-yelp
+kubectl logs deployment/review-worker -n lab2-yelp
+```
+
+## Frontend state management
+
+Redux Toolkit lives in `frontend/src/store/`.
+
+Slices:
+
+- `authSlice.js`
+- `restaurantsSlice.js`
+- `reviewsSlice.js`
+- `favouritesSlice.js`
+
+Use Redux DevTools to capture the required screenshots for `Auth`, `Restaurant`, `Review`, and `Favourites`.
+
+## JMeter
+
+The base load-test plan is stored at:
+
+- `jmeter/lab2-yelp-load-test.jmx`
+
+It covers:
+
+- login
+- restaurant search
+- review submission
+
+The plan is parameterized so you can run the required concurrency levels:
+
+- 100 users
+- 200 users
+- 300 users
+- 400 users
+- 500 users
+
+Recommended workflow:
+
+1. Open the `.jmx` file in JMeter.
+2. Set `THREADS`, `RAMP_UP`, and user credentials.
+3. Run the plan against your Docker Compose or EKS deployment.
+4. Export result CSV files and response-time graphs for the report.
+
+## Validation checklist
+
+- `python3 -m compileall backend_shared services`
+- `cd frontend && npm run build`
+- `docker compose config`
+- `kubectl kustomize deploy/k8s >/tmp/lab2-k8s-rendered.yaml`
+
+## Notes
+
+- The fifth Dockerfile is the frontend container, not Kafka.
+- Kafka is deployed as infrastructure in Docker Compose and Kubernetes.
+- The original Lab 1 `app/` package is intentionally retained for data migration and reference.
+- `venv`, `.venv`, and `__pycache__` remain ignored by `.gitignore`.

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-worker
+  namespace: lab2-yelp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-worker
+  template:
+    metadata:
+      labels:
+        app: review-worker
+    spec:
+      containers:
+        - name: review-worker
+          image: lab2-yelp/review-service:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "services.review_service.worker"]
+          envFrom:
+            - configMapRef:
+                name: lab2-yelp-config
+            - secretRef:
+                name: lab2-yelp-secret
+          env:
+            - name: SERVICE_NAME
+              value: review-worker
+            - name: REVIEW_STATUS_CONSUMER_ENABLED
+              value: "false"

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-service
+  namespace: lab2-yelp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-service
+  template:
+    metadata:
+      labels:
+        app: review-service
+    spec:
+      containers:
+        - name: review-service
+          image: lab2-yelp/review-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: lab2-yelp-config
+            - secretRef:
+                name: lab2-yelp-secret
+          env:
+            - name: SERVICE_NAME
+              value: review-service
+            - name: REVIEW_STATUS_CONSUMER_ENABLED
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-service
+  namespace: lab2-yelp
+spec:
+  selector:
+    app: review-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

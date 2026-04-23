@@ -1,0 +1,137 @@
+name: lab2-yelp
+
+x-backend-env: &backend-env
+  MONGODB_URL: mongodb://mongodb:27017
+  MONGODB_DATABASE: lab2_yelp
+  JWT_SECRET_KEY: change-this-before-deploying
+  JWT_ALGORITHM: HS256
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  UPLOADS_DIR: /app/uploads
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_TOPIC_REVIEW_CREATED: review.created
+  KAFKA_TOPIC_REVIEW_UPDATED: review.updated
+  KAFKA_TOPIC_REVIEW_DELETED: review.deleted
+  KAFKA_TOPIC_REVIEW_STATUS: booking.status
+  CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: lab2-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: lab2-kafka
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.user-service
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: user-service
+      REVIEW_STATUS_CONSUMER_ENABLED: "false"
+    depends_on:
+      - mongodb
+      - kafka
+    ports:
+      - "8001:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    restart: unless-stopped
+
+  owner-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.owner-service
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: owner-service
+      REVIEW_STATUS_CONSUMER_ENABLED: "false"
+    depends_on:
+      - mongodb
+      - kafka
+    ports:
+      - "8002:8000"
+    restart: unless-stopped
+
+  restaurant-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.restaurant-service
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: restaurant-service
+      REVIEW_STATUS_CONSUMER_ENABLED: "false"
+    depends_on:
+      - mongodb
+      - kafka
+    ports:
+      - "8003:8000"
+    restart: unless-stopped
+
+  review-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.review-service
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: review-service
+      REVIEW_STATUS_CONSUMER_ENABLED: "true"
+    depends_on:
+      - mongodb
+      - kafka
+    ports:
+      - "8004:8000"
+    restart: unless-stopped
+
+  review-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.review-service
+    command: ["python", "-m", "services.review_service.worker"]
+    environment:
+      <<: *backend-env
+      SERVICE_NAME: review-worker
+      REVIEW_STATUS_CONSUMER_ENABLED: "false"
+    depends_on:
+      - mongodb
+      - kafka
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - user-service
+      - owner-service
+      - restaurant-service
+      - review-service
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  uploads_data:

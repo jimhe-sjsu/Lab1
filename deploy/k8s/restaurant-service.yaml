@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-service
+  namespace: lab2-yelp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restaurant-service
+  template:
+    metadata:
+      labels:
+        app: restaurant-service
+    spec:
+      containers:
+        - name: restaurant-service
+          image: lab2-yelp/restaurant-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: lab2-yelp-config
+            - secretRef:
+                name: lab2-yelp-secret
+          env:
+            - name: SERVICE_NAME
+              value: restaurant-service
+            - name: REVIEW_STATUS_CONSUMER_ENABLED
+              value: "false"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: restaurant-service
+  namespace: lab2-yelp
+spec:
+  selector:
+    app: restaurant-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

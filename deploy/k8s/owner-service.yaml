@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: owner-service
+  namespace: lab2-yelp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owner-service
+  template:
+    metadata:
+      labels:
+        app: owner-service
+    spec:
+      containers:
+        - name: owner-service
+          image: lab2-yelp/owner-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: lab2-yelp-config
+            - secretRef:
+                name: lab2-yelp-secret
+          env:
+            - name: SERVICE_NAME
+              value: owner-service
+            - name: REVIEW_STATUS_CONSUMER_ENABLED
+              value: "false"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: owner-service
+  namespace: lab2-yelp
+spec:
+  selector:
+    app: owner-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
