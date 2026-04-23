@@ -34,6 +34,7 @@ PyMySQL==1.1.2
 python-dotenv==1.2.1
 python-jose==3.5.0
 python-multipart==0.0.20
+pymongo==4.15.3
 PyYAML==6.0.3
 regex==2026.2.19
 requests==2.32.5
@@ -52,4 +53,5 @@ uuid_utils==0.14.1
 uvicorn==0.41.0
 xxhash==3.6.0
 zstandard==0.25.0
-langchain-openai
+langchain-openai==1.1.0
+kafka-python==2.2.15
