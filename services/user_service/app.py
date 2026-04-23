@@ -52,7 +52,6 @@ app = create_service_app(
 
 upload_dir = get_upload_directory()
 upload_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 
 def _get_preferences_document(db, user_id: int):
@@ -279,3 +278,6 @@ def ai_chat(payload: AIChatRequest, current_user: dict = Depends(get_current_use
 def upload_image(file: UploadFile = File(...), current_user: dict = Depends(get_current_user())):
     upload = save_upload(file)
     return UploadResponse(**upload)
+
+
+app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
