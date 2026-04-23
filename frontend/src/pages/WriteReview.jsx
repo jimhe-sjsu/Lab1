@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { createReview, fetchRestaurantDetails, uploadImage } from '../api'
+import { fetchRestaurantDetails, uploadImage } from '../api'
+import { fetchRestaurantDetailsThunk } from '../store/slices/restaurantsSlice'
+import { createReviewThunk } from '../store/slices/reviewsSlice'
 
 function WriteReview() {
+  const dispatch = useDispatch()
   const { restaurantId } = useParams()
   const navigate = useNavigate()
   const [restaurant, setRestaurant] = useState(null)
@@ -65,12 +69,15 @@ function WriteReview() {
         uploadedPhotoUrl = upload.url
       }
 
-      await createReview({
+      await dispatch(
+        createReviewThunk({
         restaurant_id: Number(restaurantId),
         rating: form.rating,
         comment: form.comment,
         photo_url: uploadedPhotoUrl,
-      })
+        })
+      ).unwrap()
+      await dispatch(fetchRestaurantDetailsThunk(restaurantId)).unwrap()
       navigate(`/restaurants/${restaurantId}`)
     } catch (requestError) {
       setError(requestError?.response?.data?.detail || 'Could not submit review.')

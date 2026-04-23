@@ -1,18 +1,30 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import {
-  addFavorite,
-  claimRestaurant,
-  createReview,
-  deleteReview,
-  fetchFavorites,
-  fetchRestaurantDetails,
-  removeFavorite,
-  updateRestaurant,
-  updateReview,
-  uploadImage,
-} from '../api'
+import { claimRestaurant, uploadImage } from '../api'
 import { useAuth } from '../auth'
+import {
+  addFavoriteThunk,
+  fetchFavoritesThunk,
+  removeFavoriteThunk,
+  selectFavouriteItems,
+} from '../store/slices/favouritesSlice'
+import {
+  fetchRestaurantDetailsThunk,
+  selectRestaurantDetail,
+  selectRestaurantsError,
+  selectRestaurantsStatus,
+  updateRestaurantThunk,
+} from '../store/slices/restaurantsSlice'
+import {
+  createReviewThunk,
+  deleteReviewThunk,
+  fetchReviewsThunk,
+  selectReviewsByRestaurant,
+  selectReviewsError,
+  selectReviewsStatus,
+  updateReviewThunk,
+} from '../store/slices/reviewsSlice'
 
 function buildRestaurantEditData(restaurant) {
   return {
@@ -32,99 +44,78 @@ function buildRestaurantEditData(restaurant) {
 }
 
 function RestaurantDetails() {
+  const dispatch = useDispatch()
   const { restaurantId } = useParams()
   const navigate = useNavigate()
   const { isAuthenticated, user } = useAuth()
 
-  const [restaurant, setRestaurant] = useState(null)
-  const [reviews, setReviews] = useState([])
-  const [isFavorite, setIsFavorite] = useState(false)
+  const restaurant = useSelector(selectRestaurantDetail(restaurantId))
+  const reviews = useSelector(selectReviewsByRestaurant(restaurantId))
+  const favorites = useSelector(selectFavouriteItems)
+  const restaurantsStatus = useSelector(selectRestaurantsStatus)
+  const restaurantsError = useSelector(selectRestaurantsError)
+  const reviewsStatus = useSelector(selectReviewsStatus)
+  const reviewsError = useSelector(selectReviewsError)
 
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', photoUrl: '' })
   const [editingReviewId, setEditingReviewId] = useState(null)
   const [editingReview, setEditingReview] = useState({ rating: 5, comment: '', photoUrl: '' })
-
   const [isEditingRestaurant, setIsEditingRestaurant] = useState(false)
   const [restaurantEdit, setRestaurantEdit] = useState(buildRestaurantEditData(null))
   const [restaurantPhotoFile, setRestaurantPhotoFile] = useState(null)
-
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
 
   const userId = user?.userId
   const isOwnerRole = user?.role === 'OWNER'
   const isReviewer = user?.role !== 'OWNER'
   const canWriteReview = isAuthenticated && isReviewer
+  const isLoading = restaurantsStatus === 'loading' || reviewsStatus === 'loading'
+  const error = restaurantsError || reviewsError
 
   useEffect(() => {
-    let isMounted = true
-
-    async function loadRestaurant() {
-      try {
-        setIsLoading(true)
-        const data = await fetchRestaurantDetails(restaurantId)
-
-        if (!isMounted) {
-          return
-        }
-
-        setRestaurant(data.restaurant)
-        setReviews(data.reviews)
-        setRestaurantEdit(buildRestaurantEditData(data.restaurant))
-
-        if (isAuthenticated) {
-          const favorites = await fetchFavorites()
-          if (isMounted) {
-            setIsFavorite(favorites.some((favorite) => favorite.id === data.restaurant.id))
-          }
-        }
-      } catch (requestError) {
-        if (isMounted) {
-          setError(requestError?.response?.data?.detail || 'Could not load restaurant details.')
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
+    dispatch(fetchRestaurantDetailsThunk(restaurantId))
+    dispatch(fetchReviewsThunk(restaurantId))
+    if (isAuthenticated) {
+      dispatch(fetchFavoritesThunk())
     }
+  }, [dispatch, restaurantId, isAuthenticated])
 
-    loadRestaurant()
-    return () => {
-      isMounted = false
+  useEffect(() => {
+    setRestaurantEdit(buildRestaurantEditData(restaurant))
+  }, [restaurant])
+
+  const isFavorite = useMemo(() => favorites.some((favorite) => favorite.id === restaurant?.id), [favorites, restaurant?.id])
+
+  async function refreshRestaurantState() {
+    await Promise.all([dispatch(fetchRestaurantDetailsThunk(restaurantId)).unwrap(), dispatch(fetchReviewsThunk(restaurantId)).unwrap()])
+    if (isAuthenticated) {
+      await dispatch(fetchFavoritesThunk()).unwrap()
     }
-  }, [restaurantId, isAuthenticated])
+  }
 
   async function toggleFavorite() {
     if (!restaurant) {
       return
     }
-
     setActionError('')
-
     try {
       if (isFavorite) {
-        await removeFavorite(restaurant.id)
-        setIsFavorite(false)
+        await dispatch(removeFavoriteThunk(restaurant.id)).unwrap()
       } else {
-        await addFavorite(restaurant.id)
-        setIsFavorite(true)
+        await dispatch(addFavoriteThunk(restaurant.id)).unwrap()
       }
     } catch (requestError) {
-      setActionError(requestError?.response?.data?.detail || 'Could not update favorite.')
+      setActionError(requestError?.message || 'Could not update favorite.')
     }
   }
 
   async function handleClaimRestaurant() {
     setActionError('')
-
     try {
       await claimRestaurant(restaurantId)
-      const data = await fetchRestaurantDetails(restaurantId)
-      setRestaurant(data.restaurant)
+      await refreshRestaurantState()
     } catch (requestError) {
-      setActionError(requestError?.response?.data?.detail || 'Could not claim restaurant.')
+      setActionError(requestError?.response?.data?.detail || requestError?.message || 'Could not claim restaurant.')
     }
   }
 
@@ -143,49 +134,50 @@ function RestaurantDetails() {
         uploadedPhotoUrl = upload.url
       }
 
-      const updated = await updateRestaurant(restaurant.id, {
-        name: restaurantEdit.name,
-        cuisine_type: restaurantEdit.cuisine,
-        address: restaurantEdit.address,
-        city: restaurantEdit.city,
-        state: restaurantEdit.state.toUpperCase().slice(0, 2),
-        zip_code: restaurantEdit.zipCode,
-        description: restaurantEdit.description,
-        contact_phone: restaurantEdit.contactPhone,
-        hours_text: restaurantEdit.hoursText,
-        amenities_text: restaurantEdit.amenitiesText,
-        photo_url: uploadedPhotoUrl,
-        price_tier: restaurantEdit.priceLevel,
-      })
+      await dispatch(
+        updateRestaurantThunk({
+          restaurantId: restaurant.id,
+          payload: {
+            name: restaurantEdit.name,
+            cuisine_type: restaurantEdit.cuisine,
+            address: restaurantEdit.address,
+            city: restaurantEdit.city,
+            state: restaurantEdit.state.toUpperCase().slice(0, 2),
+            zip_code: restaurantEdit.zipCode,
+            description: restaurantEdit.description,
+            contact_phone: restaurantEdit.contactPhone,
+            hours_text: restaurantEdit.hoursText,
+            amenities_text: restaurantEdit.amenitiesText,
+            photo_url: uploadedPhotoUrl,
+            price_tier: restaurantEdit.priceLevel,
+          },
+        })
+      ).unwrap()
 
-      setRestaurant((prev) => ({
-        ...updated,
-        rating: prev?.rating ?? updated.rating,
-        reviewCount: prev?.reviewCount ?? updated.reviewCount,
-      }))
-      setRestaurantEdit(buildRestaurantEditData(updated))
       setRestaurantPhotoFile(null)
       setIsEditingRestaurant(false)
+      await refreshRestaurantState()
     } catch (requestError) {
-      setActionError(requestError?.response?.data?.detail || 'Could not update restaurant listing.')
+      setActionError(requestError?.response?.data?.detail || requestError?.message || 'Could not update restaurant listing.')
     }
   }
 
   async function handleCreateReview(event) {
     event.preventDefault()
     setActionError('')
-
     try {
-      const created = await createReview({
-        restaurant_id: Number(restaurantId),
-        rating: newReview.rating,
-        comment: newReview.comment,
-        photo_url: newReview.photoUrl.trim() || null,
-      })
-      setReviews((prev) => [created, ...prev])
+      await dispatch(
+        createReviewThunk({
+          restaurant_id: Number(restaurantId),
+          rating: newReview.rating,
+          comment: newReview.comment,
+          photo_url: newReview.photoUrl.trim() || null,
+        })
+      ).unwrap()
       setNewReview({ rating: 5, comment: '', photoUrl: '' })
+      await dispatch(fetchRestaurantDetailsThunk(restaurantId)).unwrap()
     } catch (requestError) {
-      setActionError(requestError?.response?.data?.detail || 'Could not submit review.')
+      setActionError(requestError?.message || 'Could not submit review.')
     }
   }
 
@@ -197,29 +189,35 @@ function RestaurantDetails() {
   async function saveEdit(reviewId) {
     setActionError('')
     try {
-      const updated = await updateReview(reviewId, {
-        rating: editingReview.rating,
-        comment: editingReview.comment,
-        photo_url: editingReview.photoUrl.trim() || null,
-      })
-      setReviews((prev) => prev.map((review) => (review.id === reviewId ? updated : review)))
+      await dispatch(
+        updateReviewThunk({
+          reviewId,
+          restaurantId: Number(restaurantId),
+          payload: {
+            rating: editingReview.rating,
+            comment: editingReview.comment,
+            photo_url: editingReview.photoUrl.trim() || null,
+          },
+        })
+      ).unwrap()
       setEditingReviewId(null)
+      await dispatch(fetchRestaurantDetailsThunk(restaurantId)).unwrap()
     } catch (requestError) {
-      setActionError(requestError?.response?.data?.detail || 'Could not update review.')
+      setActionError(requestError?.message || 'Could not update review.')
     }
   }
 
   async function removeReview(reviewId) {
     setActionError('')
     try {
-      await deleteReview(reviewId)
-      setReviews((prev) => prev.filter((review) => review.id !== reviewId))
+      await dispatch(deleteReviewThunk({ reviewId, restaurantId: Number(restaurantId) })).unwrap()
+      await dispatch(fetchRestaurantDetailsThunk(restaurantId)).unwrap()
     } catch (requestError) {
-      setActionError(requestError?.response?.data?.detail || 'Could not delete review.')
+      setActionError(requestError?.message || 'Could not delete review.')
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !restaurant) {
     return (
       <section className='page'>
         <p className='muted'>Loading restaurant details...</p>

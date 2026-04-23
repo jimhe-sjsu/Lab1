@@ -1,16 +1,25 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Provider } from 'react-redux'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
-import { AuthProvider } from './auth'
+import { store } from './store'
+import { forceLogout } from './store/slices/authSlice'
 import './index.css'
+
+if (!window.__lab2UnauthorizedListenerRegistered) {
+  window.addEventListener('auth:unauthorized', () => {
+    store.dispatch(forceLogout())
+  })
+  window.__lab2UnauthorizedListenerRegistered = true
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
+    <Provider store={store}>
+      <BrowserRouter>
         <App />
-      </AuthProvider>
-    </BrowserRouter>
+      </BrowserRouter>
+    </Provider>
   </StrictMode>
 )

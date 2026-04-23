@@ -1,33 +1,43 @@
 import { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
-import { fetchFavorites, fetchUserHistory } from '../api'
+import { fetchUserHistory } from '../api'
+import {
+  fetchFavoritesThunk,
+  selectFavouriteItems,
+  selectFavouritesError,
+  selectFavouritesStatus,
+} from '../store/slices/favouritesSlice'
 
 function FavoritesHistory() {
+  const dispatch = useDispatch()
   const [activeTab, setActiveTab] = useState('favorites')
-  const [favorites, setFavorites] = useState([])
   const [history, setHistory] = useState({ reviews_written: [], restaurants_added: [] })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const favorites = useSelector(selectFavouriteItems)
+  const favoritesStatus = useSelector(selectFavouritesStatus)
+  const favoritesError = useSelector(selectFavouritesError)
+  const isLoading = favoritesStatus === 'loading' || historyLoading
+  const error = favoritesError
 
   useEffect(() => {
     let isMounted = true
 
     async function loadActivity() {
       try {
-        setIsLoading(true)
-        const [favoriteRestaurants, historyData] = await Promise.all([fetchFavorites(), fetchUserHistory()])
+        setHistoryLoading(true)
+        const [historyData] = await Promise.all([dispatch(fetchFavoritesThunk()).unwrap(), fetchUserHistory()])
 
         if (isMounted) {
-          setFavorites(favoriteRestaurants)
           setHistory(historyData)
         }
       } catch (requestError) {
         if (isMounted) {
-          setError(requestError?.response?.data?.detail || 'Could not load activity.')
+          console.error(requestError)
         }
       } finally {
         if (isMounted) {
-          setIsLoading(false)
+          setHistoryLoading(false)
         }
       }
     }
@@ -36,7 +46,7 @@ function FavoritesHistory() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [dispatch])
 
   return (
     <section className='page'>

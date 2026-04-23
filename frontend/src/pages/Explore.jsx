@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import { Link, useSearchParams } from 'react-router-dom'
-import { searchRestaurants } from '../api'
+import {
+  searchRestaurantsThunk,
+  selectRestaurantList,
+  selectRestaurantsError,
+  selectRestaurantsStatus,
+} from '../store/slices/restaurantsSlice'
 
 function RestaurantCard({ restaurant }) {
   return (
@@ -20,61 +26,29 @@ function RestaurantCard({ restaurant }) {
   )
 }
 
-function Explore() {
-  const [searchParams] = useSearchParams()
-  const [restaurants, setRestaurants] = useState([])
-  const [filters, setFilters] = useState({
-    name: '',
-    cuisine: 'All',
-    city: '',
-    zipCode: '',
-    keyword: '',
-    priceTier: 'Any',
-  })
+function buildFiltersFromSearchParams(searchParams) {
+  return {
+    name: searchParams.get('name') || '',
+    cuisine: searchParams.get('cuisine') || 'All',
+    city: searchParams.get('city') || '',
+    zipCode: searchParams.get('zip_code') || '',
+    keyword: searchParams.get('keyword') || '',
+    priceTier: searchParams.get('price_tier') || 'Any',
+  }
+}
+
+function ExploreContent({ initialFilters }) {
+  const dispatch = useDispatch()
+  const [filters, setFilters] = useState(initialFilters)
   const [minimumRating, setMinimumRating] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState('')
+  const restaurants = useSelector(selectRestaurantList)
+  const restaurantsStatus = useSelector(selectRestaurantsStatus)
+  const error = useSelector(selectRestaurantsError)
+  const isLoading = restaurantsStatus === 'loading'
 
   useEffect(() => {
-    setFilters((prev) => ({
-      ...prev,
-      name: searchParams.get('name') || '',
-      cuisine: searchParams.get('cuisine') || 'All',
-      city: searchParams.get('city') || '',
-      zipCode: searchParams.get('zip_code') || '',
-      keyword: searchParams.get('keyword') || '',
-      priceTier: searchParams.get('price_tier') || 'Any',
-    }))
-  }, [searchParams])
-
-  useEffect(() => {
-    let mounted = true
-
-    async function loadRestaurants() {
-      try {
-        setIsLoading(true)
-        setError('')
-        const data = await searchRestaurants(filters)
-        if (mounted) {
-          setRestaurants(data)
-        }
-      } catch (requestError) {
-        if (mounted) {
-          setError(requestError?.response?.data?.detail || 'Could not load restaurants.')
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    loadRestaurants()
-
-    return () => {
-      mounted = false
-    }
-  }, [filters])
+    dispatch(searchRestaurantsThunk(filters))
+  }, [dispatch, filters])
 
   const allCuisines = useMemo(() => {
     return ['All', ...new Set(restaurants.map((restaurant) => restaurant.cuisine).filter(Boolean))]
@@ -159,6 +133,14 @@ function Explore() {
       </div>
     </section>
   )
+}
+
+function Explore() {
+  const [searchParams] = useSearchParams()
+  const searchKey = searchParams.toString()
+  const initialFilters = useMemo(() => buildFiltersFromSearchParams(new URLSearchParams(searchKey)), [searchKey])
+
+  return <ExploreContent key={searchKey} initialFilters={initialFilters} />
 }
 
 export default Explore
