@@ -48,7 +48,7 @@ spec:
               value: "1"
           volumeMounts:
             - name: kafka-data
-              mountPath: /bitnami/kafka
+              mountPath: /tmp/kafka-logs
       volumes:
         - name: kafka-data
           emptyDir: {}
@@ -65,3 +65,6 @@ spec:
     - name: kafka
       port: 9092
       targetPort: 9092
+    - name: controller
+      port: 9093
+      targetPort: 9093
