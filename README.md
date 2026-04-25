@@ -339,6 +339,22 @@ Recommended workflow:
 3. Run the plan against your Docker Compose or EKS deployment.
 4. Export result CSV files and response-time graphs for the report.
 
+### Scale MongoDB for load tests
+
+Use the Mongo scale seed script when you need larger local data for JMeter:
+
+```bash
+python3 scripts/seed_mongo_scale_data.py --users 10000 --restaurants 10000 --reviews 10000
+```
+
+For a Kubernetes-local MongoDB deployment, port-forward MongoDB first:
+
+```bash
+kubectl port-forward svc/mongodb 27018:27017 -n lab2-yelp
+MONGODB_URL=mongodb://localhost:27018 MONGODB_DATABASE=lab2_yelp \
+  python3 scripts/seed_mongo_scale_data.py --users 10000 --restaurants 10000 --reviews 10000 --drop-existing
+```
+
 ## Validation checklist
 
 - `python3 -m compileall backend_shared services`
