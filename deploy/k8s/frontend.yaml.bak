@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: 117370071493.dkr.ecr.us-west-1.amazonaws.com/lab2-yelp/frontend:lab2-arm64
+          image: lab2-yelp/frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

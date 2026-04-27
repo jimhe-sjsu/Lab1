@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: review-worker
-          image: 117370071493.dkr.ecr.us-west-1.amazonaws.com/lab2-yelp/review-service:lab2-arm64
+          image: lab2-yelp/review-service:latest
           imagePullPolicy: IfNotPresent
           command: ["python", "-m", "services.review_service.worker"]
           envFrom:

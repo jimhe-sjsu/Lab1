@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: review-service
+  name: owner-service
   namespace: lab2-yelp
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: review-service
+      app: owner-service
   template:
     metadata:
       labels:
-        app: review-service
+        app: owner-service
     spec:
       containers:
-        - name: review-service
-          image: 117370071493.dkr.ecr.us-west-1.amazonaws.com/lab2-yelp/review-service:lab2-arm64
+        - name: owner-service
+          image: lab2-yelp/owner-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -26,18 +26,18 @@ spec:
                 name: lab2-yelp-secret
           env:
             - name: SERVICE_NAME
-              value: review-service
+              value: owner-service
             - name: REVIEW_STATUS_CONSUMER_ENABLED
-              value: "true"
+              value: "false"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: review-service
+  name: owner-service
   namespace: lab2-yelp
 spec:
   selector:
-    app: review-service
+    app: owner-service
   ports:
     - name: http
       port: 8000
