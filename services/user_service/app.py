@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 
@@ -27,7 +28,7 @@ from backend_shared.schemas import (
 )
 from backend_shared.serializers import serialize_preferences, serialize_user_profile
 from backend_shared.service_factory import create_service_app
-from backend_shared.uploads import get_upload_directory, save_upload
+from backend_shared.uploads import get_upload_directory, load_upload, save_upload
 from backend_shared.utils import utcnow
 from backend_shared.activity import record_activity
 
@@ -278,6 +279,12 @@ def ai_chat(payload: AIChatRequest, current_user: dict = Depends(get_current_use
 def upload_image(file: UploadFile = File(...), current_user: dict = Depends(get_current_user())):
     upload = save_upload(file)
     return UploadResponse(**upload)
+
+
+@app.get("/uploads/{filename}")
+def get_uploaded_image(filename: str):
+    upload = load_upload(filename)
+    return Response(content=upload["body"], media_type=upload["content_type"])
 
 
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")

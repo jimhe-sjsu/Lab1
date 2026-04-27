@@ -24,6 +24,9 @@ class Settings:
     jwt_algorithm: str
     access_token_expire_minutes: int
     uploads_dir: str
+    s3_bucket_name: str | None
+    s3_region: str
+    s3_prefix: str
     kafka_bootstrap_servers: str
     kafka_review_created_topic: str
     kafka_review_updated_topic: str
@@ -52,6 +55,9 @@ def get_settings() -> Settings:
         jwt_algorithm=os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM", "HS256"),
         access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")),
         uploads_dir=os.getenv("UPLOADS_DIR", "uploads"),
+        s3_bucket_name=os.getenv("S3_BUCKET_NAME") or None,
+        s3_region=os.getenv("S3_REGION") or os.getenv("AWS_REGION", "us-west-2"),
+        s3_prefix=os.getenv("S3_PREFIX", "uploads/").strip("/"),
         kafka_bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
         kafka_review_created_topic=os.getenv("KAFKA_TOPIC_REVIEW_CREATED", "review.created"),
         kafka_review_updated_topic=os.getenv("KAFKA_TOPIC_REVIEW_UPDATED", "review.updated"),

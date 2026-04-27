@@ -299,6 +299,74 @@ kubectl get svc -n lab2-yelp
 kubectl logs deployment/review-worker -n lab2-yelp
 ```
 
+### Optional AWS S3 upload storage
+
+By default, uploads are stored in `/app/uploads`. In Kubernetes this is an `emptyDir`, so files are temporary and disappear when the `user-service` pod is replaced.
+
+For the AWS demo, uploads can be stored in a private S3 bucket instead. The app still returns stable URLs like `/api/user/uploads/<filename>`, and `user-service` reads the private S3 object when the browser requests that URL.
+
+The demo bucket created for this run is:
+
+```bash
+lab2-yelp-117370071493-us-west-2-demo
+```
+
+The bucket has public access blocked and a lifecycle rule that deletes objects under `uploads/` after 7 days.
+
+After the EKS nodegroup exists, attach S3 access to the worker node IAM role:
+
+```bash
+export AWS_REGION=us-west-2
+export CLUSTER_NAME=lab2-yelp
+export S3_BUCKET_NAME=lab2-yelp-117370071493-us-west-2-demo
+
+export NODEGROUP_NAME=$(aws eks list-nodegroups \
+  --region "$AWS_REGION" \
+  --cluster-name "$CLUSTER_NAME" \
+  --query 'nodegroups[0]' \
+  --output text)
+
+export NODE_ROLE_ARN=$(aws eks describe-nodegroup \
+  --region "$AWS_REGION" \
+  --cluster-name "$CLUSTER_NAME" \
+  --nodegroup-name "$NODEGROUP_NAME" \
+  --query 'nodegroup.nodeRole' \
+  --output text)
+
+export NODE_ROLE_NAME=${NODE_ROLE_ARN##*/}
+
+aws iam put-role-policy \
+  --role-name "$NODE_ROLE_NAME" \
+  --policy-name lab2-yelp-s3-demo-access \
+  --policy-document "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [
+      {
+        \"Effect\": \"Allow\",
+        \"Action\": [\"s3:ListBucket\"],
+        \"Resource\": \"arn:aws:s3:::$S3_BUCKET_NAME\"
+      },
+      {
+        \"Effect\": \"Allow\",
+        \"Action\": [\"s3:GetObject\", \"s3:PutObject\", \"s3:DeleteObject\"],
+        \"Resource\": \"arn:aws:s3:::$S3_BUCKET_NAME/uploads/*\"
+      }
+    ]
+  }"
+```
+
+Enable S3 uploads for the Kubernetes app:
+
+```bash
+kubectl set env deployment/user-service \
+  -n lab2-yelp \
+  S3_BUCKET_NAME="$S3_BUCKET_NAME" \
+  S3_REGION="$AWS_REGION" \
+  S3_PREFIX=uploads/
+```
+
+If `S3_BUCKET_NAME` is empty, the app falls back to local `/app/uploads` storage.
+
 ## Frontend state management
 
 Redux Toolkit lives in `frontend/src/store/`.
